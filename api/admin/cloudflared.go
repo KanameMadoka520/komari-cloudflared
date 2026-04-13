@@ -12,8 +12,10 @@ import (
 	"github.com/komari-monitor/komari/utils/cloudflared"
 )
 
+const cloudflaredStopConfirmText = "STOP CLOUDFLARED"
+
 func GetCloudflaredStatus(c *gin.Context) {
-	api.RespondSuccess(c, cloudflared.Status(true))
+	api.RespondSuccess(c, cloudflared.Status())
 }
 
 func SaveCloudflaredToken(c *gin.Context) {
@@ -36,7 +38,7 @@ func SaveCloudflaredToken(c *gin.Context) {
 	if uuid, ok := c.Get("uuid"); ok {
 		auditlog.Log(c.ClientIP(), uuid.(string), "saved cloudflared tunnel token", "warn")
 	}
-	api.RespondSuccess(c, cloudflared.Status(true))
+	api.RespondSuccess(c, cloudflared.Status())
 }
 
 func StartCloudflared(c *gin.Context) {
@@ -63,12 +65,13 @@ func StartCloudflared(c *gin.Context) {
 	if uuid, ok := c.Get("uuid"); ok {
 		auditlog.Log(c.ClientIP(), uuid.(string), "started cloudflared tunnel", "warn")
 	}
-	api.RespondSuccess(c, cloudflared.Status(true))
+	api.RespondSuccess(c, cloudflared.Status())
 }
 
 func StopCloudflared(c *gin.Context) {
 	var req struct {
 		CurrentPassword string `json:"current_password"`
+		ConfirmText     string `json:"confirm_text"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil && err.Error() != "EOF" {
@@ -97,6 +100,9 @@ func StopCloudflared(c *gin.Context) {
 			api.RespondError(c, http.StatusUnauthorized, "Current password is incorrect")
 			return
 		}
+	} else if strings.TrimSpace(req.ConfirmText) != cloudflaredStopConfirmText {
+		api.RespondError(c, http.StatusBadRequest, "Type STOP CLOUDFLARED to confirm stopping cloudflared")
+		return
 	}
 
 	if err := cloudflared.Stop(); err != nil {
@@ -106,7 +112,7 @@ func StopCloudflared(c *gin.Context) {
 	if uuid, ok := c.Get("uuid"); ok {
 		auditlog.Log(c.ClientIP(), uuid.(string), "stopped cloudflared tunnel", "warn")
 	}
-	api.RespondSuccess(c, cloudflared.Status(true))
+	api.RespondSuccess(c, cloudflared.Status())
 }
 
 func RemoveCloudflaredToken(c *gin.Context) {
@@ -117,5 +123,5 @@ func RemoveCloudflaredToken(c *gin.Context) {
 	if uuid, ok := c.Get("uuid"); ok {
 		auditlog.Log(c.ClientIP(), uuid.(string), "removed cloudflared tunnel token", "warn")
 	}
-	api.RespondSuccess(c, cloudflared.Status(true))
+	api.RespondSuccess(c, cloudflared.Status())
 }

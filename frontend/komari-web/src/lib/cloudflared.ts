@@ -6,10 +6,11 @@ export interface CloudflaredStatus {
   logs: string[];
   pid?: number;
   binaryPath?: string;
-  token?: string;
   tokenStored: boolean;
   envTokenPresent: boolean;
 }
+
+export const CLOUDFLARED_STOP_CONFIRM_TEXT = "STOP CLOUDFLARED";
 
 async function parseResponse<T>(response: Response): Promise<T> {
   const data = await response.json();
@@ -46,13 +47,19 @@ export async function startCloudflared(token: string): Promise<CloudflaredStatus
   return parseResponse<CloudflaredStatus>(response);
 }
 
-export async function stopCloudflared(currentPassword: string): Promise<CloudflaredStatus> {
+export async function stopCloudflared(
+  currentPassword: string,
+  confirmText: string,
+): Promise<CloudflaredStatus> {
   const response = await fetch("/api/admin/settings/cloudflared/stop", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ current_password: currentPassword }),
+    body: JSON.stringify({
+      current_password: currentPassword,
+      confirm_text: confirmText,
+    }),
   });
   return parseResponse<CloudflaredStatus>(response);
 }

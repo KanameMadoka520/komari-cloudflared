@@ -27,7 +27,6 @@ type RuntimeStatus struct {
 	Logs            []string `json:"logs"`
 	PID             int      `json:"pid,omitempty"`
 	BinaryPath      string   `json:"binaryPath,omitempty"`
-	Token           string   `json:"token,omitempty"`
 	TokenStored     bool     `json:"tokenStored"`
 	EnvTokenPresent bool     `json:"envTokenPresent"`
 }
@@ -49,8 +48,8 @@ var defaultManager = &manager{
 	message:     "cloudflared is not running",
 }
 
-func Status(includeToken bool) RuntimeStatus {
-	return defaultManager.status(includeToken)
+func Status() RuntimeStatus {
+	return defaultManager.status()
 }
 
 func Start(token string) error {
@@ -82,7 +81,7 @@ func SaveToken(token string) error {
 }
 
 func RemoveToken() error {
-	if defaultManager.status(false).Running {
+	if defaultManager.status().Running {
 		return errors.New("stop cloudflared before removing the token")
 	}
 	return config.Set(config.CloudflareTunnelTokenKey, "")
@@ -293,7 +292,7 @@ func (m *manager) scanPipe(reader io.ReadCloser, isErr bool) {
 	}
 }
 
-func (m *manager) status(includeToken bool) RuntimeStatus {
+func (m *manager) status() RuntimeStatus {
 	binaryPath, installed := resolveBinaryPath()
 
 	m.mu.RLock()
@@ -315,9 +314,6 @@ func (m *manager) status(includeToken bool) RuntimeStatus {
 	token, err := LoadToken()
 	if err == nil && strings.TrimSpace(token) != "" {
 		status.TokenStored = true
-		if includeToken {
-			status.Token = token
-		}
 	}
 
 	return status

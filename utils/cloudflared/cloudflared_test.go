@@ -7,7 +7,7 @@ import (
 )
 
 func TestStatusReturnsSafeDefaults(t *testing.T) {
-	status := cloudflared.Status(false)
+	status := cloudflared.Status()
 	if status.Running {
 		t.Fatalf("expected cloudflared to be stopped in test environment")
 	}
