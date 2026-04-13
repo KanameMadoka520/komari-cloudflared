@@ -1,14 +1,39 @@
-FROM alpine:3.21
+FROM golang:1.24-bookworm AS builder
+
+WORKDIR /src
+
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /out/komari .
+
+FROM debian:bookworm-slim
 
 WORKDIR /app
 
-# Docker buildx 会在构建时自动填充这些变量
-ARG TARGETOS
-ARG TARGETARCH
+ARG TARGETARCH=amd64
 
-RUN apk add --no-cache tzdata
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl tzdata \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY komari-${TARGETOS}-${TARGETARCH} /app/komari
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+      amd64) cloudflared_arch="amd64" ;; \
+      386) cloudflared_arch="386" ;; \
+      arm64) cloudflared_arch="arm64" ;; \
+      arm) cloudflared_arch="arm" ;; \
+      *) echo "Unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${cloudflared_arch}" -o /usr/local/bin/cloudflared; \
+    chmod +x /usr/local/bin/cloudflared
+
+COPY --from=builder /out/komari /app/komari
 
 RUN chmod +x /app/komari
 

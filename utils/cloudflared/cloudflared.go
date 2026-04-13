@@ -88,16 +88,33 @@ func RemoveToken() error {
 	return config.Set(config.CloudflareTunnelTokenKey, "")
 }
 
-func LoadToken() (string, error) {
+func LoadToken() (token string, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[cloudflared] config database is not ready yet, fallback to environment token")
+			token = strings.TrimSpace(os.Getenv("KOMARI_CLOUDFLARED_TOKEN"))
+			err = nil
+		}
+	}()
+
+	if envToken := strings.TrimSpace(os.Getenv("KOMARI_CLOUDFLARED_TOKEN")); envToken != "" {
+		if _, probeErr := config.GetAs[string](config.CloudflareTunnelTokenKey, ""); probeErr != nil {
+			return envToken, nil
+		}
+	}
+
 	raw, err := config.GetAs[string](config.CloudflareTunnelTokenKey, "")
 	if err != nil {
+		if envToken := strings.TrimSpace(os.Getenv("KOMARI_CLOUDFLARED_TOKEN")); envToken != "" {
+			return envToken, nil
+		}
 		return "", err
 	}
 	if strings.TrimSpace(raw) == "" {
 		return "", nil
 	}
 
-	token, err := secureconfig.DecryptString(raw)
+	token, err = secureconfig.DecryptString(raw)
 	if err == nil {
 		return token, nil
 	}
