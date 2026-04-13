@@ -304,7 +304,7 @@ func (m *manager) status(includeToken bool) RuntimeStatus {
 		Running:         m.running,
 		Message:         m.message,
 		ErrorMessage:    m.errorMessage,
-		Logs:            append([]string(nil), m.logs...),
+		Logs:            append([]string{}, m.logs...),
 		BinaryPath:      binaryPath,
 		EnvTokenPresent: strings.TrimSpace(os.Getenv("KOMARI_CLOUDFLARED_TOKEN")) != "",
 	}
