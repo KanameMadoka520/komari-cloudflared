@@ -22,6 +22,7 @@
 - 前端源码：`frontend/komari-web`
 - 主题静态资源：`public/defaultTheme`
 - Cloudflare Tunnel 补充说明：[`CloudflareTunnel支持说明.md`](./CloudflareTunnel支持说明.md)
+- 其他机器接入说明：[`其他机器接入Komari-cloudflared说明.md`](./其他机器接入Komari-cloudflared说明.md)
 
 ## 快速开始
 
