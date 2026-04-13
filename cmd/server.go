@@ -292,6 +292,11 @@ func RunServer() {
 			sessionGroup.POST("/remove", admin.DeleteSession)
 			sessionGroup.POST("/remove/all", admin.DeleteAllSession)
 		}
+		accountGroup := adminAuthrized.Group("/account")
+		{
+			accountGroup.GET("/theme", admin.GetThemePreferences)
+			accountGroup.POST("/theme", admin.SaveThemePreferences)
+		}
 		two_factorGroup := adminAuthrized.Group("/2fa")
 		{
 			two_factorGroup.GET("/generate", admin.Generate2FA)

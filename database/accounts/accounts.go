@@ -3,6 +3,7 @@ package accounts
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -180,4 +181,51 @@ func UpdateUser(uuid string, name, password, sso_type *string) error {
 		DeleteAllSessions()
 	}
 	return nil
+}
+
+func UpdateThemePreferences(uuid, appearance, color string) error {
+	db := dbcore.GetDBInstance()
+
+	var existingUser models.User
+	result := db.Where("uuid = ?", uuid).First(&existingUser)
+	if result.Error != nil {
+		return fmt.Errorf("user not found: %s", uuid)
+	}
+
+	appearance = normalizeThemeAppearance(appearance)
+	color = normalizeThemeColor(color)
+	if appearance == "" {
+		return errors.New("invalid theme appearance")
+	}
+	if color == "" {
+		return errors.New("invalid theme color")
+	}
+
+	return db.Model(&models.User{}).Where("uuid = ?", uuid).Updates(map[string]interface{}{
+		"theme_appearance": appearance,
+		"theme_color":      color,
+		"updated_at":       time.Now(),
+	}).Error
+}
+
+func normalizeThemeAppearance(appearance string) string {
+	switch appearance {
+	case "light", "dark", "system":
+		return appearance
+	default:
+		return ""
+	}
+}
+
+func normalizeThemeColor(color string) string {
+	switch color {
+	case "gray", "gold", "bronze", "brown", "yellow", "amber",
+		"orange", "tomato", "red", "ruby", "crimson", "pink",
+		"plum", "purple", "violet", "iris", "indigo", "blue",
+		"cyan", "teal", "jade", "green", "grass", "lime",
+		"mint", "sky":
+		return color
+	default:
+		return ""
+	}
 }
