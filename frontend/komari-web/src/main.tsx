@@ -6,8 +6,6 @@ import "@radix-ui/themes/styles.css";
 import {
   ThemeContext,
   THEME_DEFAULTS,
-  allowedAppearances,
-  allowedColors,
   type Appearance,
   type Colors,
 } from "./contexts/ThemeContext";
@@ -27,38 +25,7 @@ import { PWAUpdatePrompt } from "./components/PWAUpdatePrompt";
 import { OfflineIndicator } from "./components/OfflineIndicator";
 import { Toaster } from "./components/ui/sonner";
 import { RPC2Provider } from "./contexts/RPC2Context";
-import { AccountProvider, useAccount } from "./contexts/AccountContext";
-
-const isAppearance = (value: unknown): value is Appearance =>
-  typeof value === "string" &&
-  (allowedAppearances as readonly string[]).includes(value);
-
-const isColor = (value: unknown): value is Colors =>
-  typeof value === "string" &&
-  (allowedColors as readonly string[]).includes(value);
-
-async function saveThemePreferences(
-  appearance: Appearance,
-  color: Colors,
-): Promise<void> {
-  const response = await fetch("/api/admin/account/theme", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      theme_appearance: appearance,
-      theme_color: color,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to save theme preferences: ${response.status}`);
-  }
-}
-
 const App = () => {
-  const { account, loading: accountLoading } = useAccount();
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tempKey = params.get("temp_key");
@@ -81,84 +48,9 @@ const App = () => {
     "color",
     THEME_DEFAULTS.color,
   );
-  const hydratedAccountRef = React.useRef<string | null>(null);
-  const skipNextPersistRef = React.useRef(false);
-
-  React.useEffect(() => {
-    if (!isAppearance(appearance)) {
-      setAppearance(THEME_DEFAULTS.appearance);
-    }
-  }, [appearance, setAppearance]);
-
-  React.useEffect(() => {
-    if (!isColor(color)) {
-      setColor(THEME_DEFAULTS.color);
-    }
-  }, [color, setColor]);
 
   // Use the system theme hook to resolve "system" to actual theme
   const resolvedAppearance = useSystemTheme(appearance);
-
-  React.useEffect(() => {
-    if (accountLoading) {
-      return;
-    }
-
-    if (!account?.logged_in || !account.uuid) {
-      hydratedAccountRef.current = null;
-      return;
-    }
-
-    if (hydratedAccountRef.current === account.uuid) {
-      return;
-    }
-
-    const serverAppearance = isAppearance(account.theme_appearance)
-      ? account.theme_appearance
-      : null;
-    const serverColor = isColor(account.theme_color) ? account.theme_color : null;
-
-    if (serverAppearance || serverColor) {
-      skipNextPersistRef.current = true;
-      if (serverAppearance && serverAppearance !== appearance) {
-        setAppearance(serverAppearance);
-      }
-      if (serverColor && serverColor !== color) {
-        setColor(serverColor);
-      }
-    } else {
-      void saveThemePreferences(appearance, color).catch((error) => {
-        console.warn("Failed to seed account theme preferences:", error);
-      });
-    }
-
-    hydratedAccountRef.current = account.uuid;
-  }, [accountLoading, account?.logged_in, account?.uuid]);
-
-  React.useEffect(() => {
-    if (accountLoading || !account?.logged_in || !account.uuid) {
-      return;
-    }
-
-    if (hydratedAccountRef.current !== account.uuid) {
-      return;
-    }
-
-    if (skipNextPersistRef.current) {
-      skipNextPersistRef.current = false;
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      void saveThemePreferences(appearance, color).catch((error) => {
-        console.warn("Failed to sync theme preferences:", error);
-      });
-    }, 300);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [appearance, color, accountLoading, account?.logged_in, account?.uuid]);
 
   const themeContextValue = useMemo(
     () => ({
@@ -202,9 +94,7 @@ createRoot(document.getElementById("root")!).render(
   <ErrorBoundary>
     <StrictMode>
       <BrowserRouter>
-        <AccountProvider>
-          <App />
-        </AccountProvider>
+        <App />
       </BrowserRouter>
     </StrictMode>
   </ErrorBoundary>,

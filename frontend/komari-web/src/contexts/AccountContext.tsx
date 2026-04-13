@@ -7,8 +7,6 @@ type Account = {
   sso_type: string;
   username: string;
   uuid: string;
-  theme_appearance?: string;
-  theme_color?: string;
   "2fa_enabled": boolean;
 };
 

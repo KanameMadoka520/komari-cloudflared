@@ -44,17 +44,15 @@ type Client struct {
 
 // User represents an authenticated user
 type User struct {
-	UUID            string    `json:"uuid,omitempty" gorm:"type:varchar(36);primaryKey"`
-	Username        string    `json:"username" gorm:"type:varchar(50);unique;not null"`
-	Passwd          string    `json:"passwd,omitempty" gorm:"type:varchar(255);not null"` // Hashed password
-	SSOType         string    `json:"sso_type" gorm:"type:varchar(20)"`                   // e.g., "github", "google"
-	SSOID           string    `json:"sso_id" gorm:"type:varchar(100)"`                    // OAuth provider's user ID
-	TwoFactor       string    `json:"two_factor,omitempty" gorm:"type:varchar(255)"`      // 2FA secret
-	ThemeAppearance string    `json:"theme_appearance,omitempty" gorm:"type:varchar(20);default:''"`
-	ThemeColor      string    `json:"theme_color,omitempty" gorm:"type:varchar(20);default:''"`
-	Sessions        []Session `json:"sessions,omitempty" gorm:"foreignKey:UUID;references:UUID;constraint:OnDelete:CASCADE,OnUpdate:CASCADE"`
-	CreatedAt       LocalTime `json:"created_at"`
-	UpdatedAt       LocalTime `json:"updated_at"`
+	UUID      string    `json:"uuid,omitempty" gorm:"type:varchar(36);primaryKey"`
+	Username  string    `json:"username" gorm:"type:varchar(50);unique;not null"`
+	Passwd    string    `json:"passwd,omitempty" gorm:"type:varchar(255);not null"` // Hashed password
+	SSOType   string    `json:"sso_type" gorm:"type:varchar(20)"`                   // e.g., "github", "google"
+	SSOID     string    `json:"sso_id" gorm:"type:varchar(100)"`                    // OAuth provider's user ID
+	TwoFactor string    `json:"two_factor,omitempty" gorm:"type:varchar(255)"`      // 2FA secret
+	Sessions  []Session `json:"sessions,omitempty" gorm:"foreignKey:UUID;references:UUID;constraint:OnDelete:CASCADE,OnUpdate:CASCADE"`
+	CreatedAt LocalTime `json:"created_at"`
+	UpdatedAt LocalTime `json:"updated_at"`
 }
 
 // Session manages user sessions
@@ -97,14 +95,14 @@ type Record struct {
 
 // GPURecord logs individual GPU metrics over time
 type GPURecord struct {
-	Client      string    `json:"client" gorm:"type:varchar(36);index"` // 客户端UUID
-	Time        LocalTime `json:"time" gorm:"index"`                    // 记录时间
-	DeviceIndex int       `json:"device_index" gorm:"index"`            // GPU设备索引 (0,1,2...)
-	DeviceName  string    `json:"device_name" gorm:"type:varchar(100)"` // GPU型号
-	MemTotal    int64     `json:"mem_total" gorm:"type:bigint"`         // 显存总量(字节)
-	MemUsed     int64     `json:"mem_used" gorm:"type:bigint"`          // 显存使用(字节)
-	Utilization float32   `json:"utilization" gorm:"type:decimal(5,2)"` // GPU使用率(%)
-	Temperature int       `json:"temperature"`                          // GPU温度(°C)
+	Client      string    `json:"client" gorm:"type:varchar(36);index"`           // 客户端UUID
+	Time        LocalTime `json:"time" gorm:"index"`                              // 记录时间
+	DeviceIndex int       `json:"device_index" gorm:"index"`                      // GPU设备索引 (0,1,2...)
+	DeviceName  string    `json:"device_name" gorm:"type:varchar(100)"`           // GPU型号
+	MemTotal    int64     `json:"mem_total" gorm:"type:bigint"`                   // 显存总量(字节)
+	MemUsed     int64     `json:"mem_used" gorm:"type:bigint"`                    // 显存使用(字节)
+	Utilization float32   `json:"utilization" gorm:"type:decimal(5,2)"`           // GPU使用率(%)
+	Temperature int       `json:"temperature"`                                    // GPU温度(°C)
 }
 
 // StringArray represents a slice of strings stored as JSON in the database
