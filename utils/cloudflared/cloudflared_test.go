@@ -1,21 +1,17 @@
 package cloudflared_test
 
 import (
-	"os"
 	"testing"
-	"time"
 
 	"github.com/komari-monitor/komari/utils/cloudflared"
 )
 
-func TestRunCloudflared(t *testing.T) {
-	os.Setenv("KOMARI_CLOUDFLARED_TOKEN", "test-token")
-
-	err := cloudflared.RunCloudflared()
-	if err != nil {
-		t.Fatalf("RunCloudflared failed: %v", err)
+func TestStatusReturnsSafeDefaults(t *testing.T) {
+	status := cloudflared.Status(false)
+	if status.Running {
+		t.Fatalf("expected cloudflared to be stopped in test environment")
 	}
-
-	// 等待一段时间，确保子进程已启动
-	time.Sleep(2 * time.Second)
+	if status.Installed && status.BinaryPath == "" {
+		t.Fatalf("expected binary path when cloudflared is installed")
+	}
 }

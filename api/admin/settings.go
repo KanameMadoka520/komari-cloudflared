@@ -17,6 +17,7 @@ func GetSettings(c *gin.Context) {
 		api.RespondError(c, 500, "Failed to get settings: "+err.Error())
 		return
 	}
+	sanitizeProtectedSettings(cst)
 	api.RespondSuccess(c, cst)
 }
 
@@ -27,6 +28,7 @@ func EditSettings(c *gin.Context) {
 		api.RespondError(c, 400, "Invalid or missing request body: "+err.Error())
 		return
 	}
+	sanitizeProtectedSettings(cfg)
 
 	if err := config.SetMany(cfg); err != nil {
 		api.RespondError(c, 500, "Failed to update settings: "+err.Error())
@@ -43,6 +45,10 @@ func EditSettings(c *gin.Context) {
 	}
 	auditlog.Log(c.ClientIP(), uuid.(string), message, "info")
 	api.RespondSuccess(c, nil)
+}
+
+func sanitizeProtectedSettings(cfg map[string]interface{}) {
+	delete(cfg, config.CloudflareTunnelTokenKey)
 }
 
 func ClearAllRecords(c *gin.Context) {

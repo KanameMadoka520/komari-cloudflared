@@ -48,6 +48,7 @@ const (
 	DescriptionKey                = "description"
 	AllowCorsKey                  = "allow_cors"
 	ThemeKey                      = "theme"
+	CloudflareTunnelTokenKey      = "cloudflare_tunnel_token"
 	PrivateSiteKey                = "private_site"
 	ApiKeyKey                     = "api_key"
 	AutoDiscoveryKeyKey           = "auto_discovery_key"

@@ -126,14 +126,6 @@ func RunServer() {
 		}
 
 	})
-	// 初始化 cloudflared
-	if strings.ToLower(GetEnv("KOMARI_ENABLE_CLOUDFLARED", "false")) == "true" {
-		err := cloudflared.RunCloudflared() // 阻塞，确保cloudflared跑起来
-		if err != nil {
-			log.Fatalf("Failed to run cloudflared: %v", err)
-		}
-	}
-
 	r := gin.New()
 	r.Use(logutil.GinLogger())
 	r.Use(logutil.GinRecovery())
@@ -247,6 +239,11 @@ func RunServer() {
 		{
 			settingsGroup.GET("/", admin.GetSettings)
 			settingsGroup.POST("/", admin.EditSettings)
+			settingsGroup.GET("/cloudflared", admin.GetCloudflaredStatus)
+			settingsGroup.POST("/cloudflared/token", admin.SaveCloudflaredToken)
+			settingsGroup.POST("/cloudflared/start", admin.StartCloudflared)
+			settingsGroup.POST("/cloudflared/stop", admin.StopCloudflared)
+			settingsGroup.POST("/cloudflared/remove-token", admin.RemoveCloudflaredToken)
 			settingsGroup.POST("/oidc", admin.SetOidcProvider)
 			settingsGroup.GET("/oidc", admin.GetOidcProvider)
 			settingsGroup.POST("/message-sender", admin.SetMessageSenderProvider)
@@ -357,6 +354,11 @@ func RunServer() {
 			log.Fatalf("listen: %s\n", err)
 		}
 	}()
+	go func() {
+		if err := cloudflared.AutoStart(strings.TrimSpace(os.Getenv("KOMARI_CLOUDFLARED_TOKEN"))); err != nil {
+			log.Printf("failed to auto start cloudflared: %v", err)
+		}
+	}()
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
@@ -425,10 +427,10 @@ func DoScheduledWork() {
 
 func OnShutdown() {
 	auditlog.Log("", "", "server is shutting down", "info")
-	cloudflared.Kill()
+	cloudflared.Shutdown()
 }
 
 func OnFatal(err error) {
 	auditlog.Log("", "", "server encountered a fatal error: "+err.Error(), "error")
-	cloudflared.Kill()
+	cloudflared.Shutdown()
 }
