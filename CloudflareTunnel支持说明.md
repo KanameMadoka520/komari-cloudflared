@@ -1,59 +1,149 @@
 # Cloudflare Tunnel 支持说明
 
-本仓库 `komari-cloudflared` 基于上游项目 `komari-monitor/komari` 开发。
+本文档说明 `komari-cloudflared` 分支相较于上游 `komari-monitor/komari` 新增的 Cloudflare Tunnel 能力、实现结构、部署方式和安全边界。
 
-在保留 Komari 原有功能的基础上，本分支新增了类似 Uptime Kuma 的内置 Cloudflare Tunnel 管理能力，目标是让管理员可以直接在后台完成：
+## 项目定位
+
+`komari-cloudflared` 基于 Komari 开发，保留原有监控功能，并新增了内置 `cloudflared` 管理能力。
+
+目标是让管理员可以在后台设置页中，尽量按照 Uptime Kuma 的使用体验完成以下操作：
 
 - 保存 Cloudflare Tunnel Token
 - 启动 `cloudflared`
 - 停止 `cloudflared`
-- 查看安装状态、运行状态、错误信息、近期日志
-- 在 Komari 重启后按已有 Token 自动恢复启动
+- 查看安装状态、运行状态、近期日志和错误信息
+- 在容器重启后自动恢复 `cloudflared`
 
-## 实现说明
+## 后台页面位置
 
-### 后端
+管理页面入口：
+
+```text
+/admin/settings/reverse-proxy
+```
+
+页面中会展示：
+
+- `cloudflared` 是否已安装
+- 当前状态：运行中 / 已停止
+- Cloudflare Tunnel Token 输入框
+- `Start cloudflared` / `Stop cloudflared` 按钮
+- 最近状态消息
+- 错误信息
+- 近期日志
+
+## 后端实现结构
+
+主要文件如下：
 
 - `api/admin/cloudflared.go`
-  管理员接口：状态、保存 Token、启动、停止、移除 Token
-
+  管理员接口，负责状态查询、保存 Token、启动、停止、移除 Token
 - `utils/cloudflared/cloudflared.go`
-  `cloudflared` 进程管理器
-
+  `cloudflared` 进程管理器，负责启动、停止、日志采集、运行状态维护和自动恢复
 - `utils/secureconfig/secureconfig.go`
-  Token 加密与解密
+  Token 的加密与解密
+- `config`
+  持久化保存 Cloudflare Tunnel Token 等配置项
 
-### 前端
+核心实现方式：
 
+- 使用 Go 的 `os/exec` 启动长期运行的 `cloudflared` 进程
+- 通过 `StdoutPipe` / `StderrPipe` 持续采集日志
+- 在内存中维护运行状态、PID、最近日志和错误消息
+- 在停止时优先尝试优雅结束，超时后再强制终止
+- 启动 Komari-cloudflared 时尝试根据已保存 Token 或环境变量自动恢复 `cloudflared`
+
+## 安全设计
+
+### Token 存储
+
+- Token 会保存到配置存储中
+- 保存前会先加密，而不是直接明文落盘
+
+### Token 返回策略
+
+当前状态接口不会把明文 Token 回传给前端。
+
+前端只能拿到：
+
+- `tokenStored: true`
+- `tokenStored: false`
+
+这意味着：
+
+- 浏览器不会再收到完整 Token
+- 输入框不会回填真实 Token
+- 页面只会通过掩码占位文本提示“已保存”
+
+### 停止 cloudflared 的二次确认
+
+为了避免误停：
+
+- 如果启用了密码登录，停止时必须再次输入当前密码
+- 如果已禁用密码登录，则必须在对话框中手动输入确认短语 `STOP CLOUDFLARED`
+
+这比“禁用密码登录时直接跳过确认”更稳妥，也更接近“仍然需要重新确认管理员当前意图”的安全语义。
+
+## 前端实现结构
+
+主要文件如下：
+
+- `frontend/komari-web/src/lib/cloudflared.ts`
+  前端请求封装与状态类型定义
 - `frontend/komari-web/src/pages/admin/settings/reverse-proxy.tsx`
   Reverse Proxy / Cloudflare Tunnel 设置页源码
-
 - `public/defaultTheme/dist`
-  已构建好的默认主题前端资源
+  构建后的前端产物
 
-## 环境变量
+当前页面行为：
 
-- `KOMARI_CLOUDFLARED_TOKEN`
-  启动时自动注入 Token 并尝试启动 `cloudflared`
-
-- `KOMARI_CLOUDFLARED_BIN`
-  手动指定 `cloudflared` 可执行文件路径
-
-- `KOMARI_SECRET_KEY`
-  可选。用于覆盖默认生成的加密主密钥
+- 已保存 Token 时，输入框使用掩码占位，不回显真实值
+- 输入框留空时，如后端已有已保存 Token，仍可直接点击 Start
+- 停止时根据当前登录模式展示不同的二次确认方式
+- 页面会定时刷新状态、日志和错误信息
 
 ## Docker 镜像设计
 
-当前 Dockerfile 采用两阶段构建：
+`komari-cloudflared` 的 Docker 镜像使用 Debian slim 作为运行时基础镜像，并在镜像构建时直接下载 `cloudflared` 可执行文件。
 
-1. 在 builder 阶段编译 Komari
-2. 在运行阶段内置 `cloudflared`
+这样做的目的是：
 
-运行镜像使用 Debian slim，而不是 Alpine。这样做是为了尽量贴近 Uptime Kuma 在 Docker 场景下“镜像内直接具备 cloudflared 能力”的体验。
+- 让 Docker 部署开箱即用
+- 不要求宿主机单独安装 `cloudflared`
+- 让 Komari-cloudflared 能在容器内部直接管理 `cloudflared`
 
-## 当前行为
+镜像特征：
 
-- 管理员可以在设置页直接保存 Token 并启动 `cloudflared`
-- Token 会持久化保存
-- Token 存储前会经过加密
-- 容器重启后，如存在 Token，可自动恢复启动
+- 运行镜像内置 `cloudflared`
+- 默认监听端口为 `25774`
+- 默认 SQLite 数据路径为 `/app/data/komari.db`
+
+## 相关环境变量
+
+- `KOMARI_CLOUDFLARED_TOKEN`
+  启动时注入 Cloudflare Tunnel Token，并尝试自动启动 `cloudflared`
+- `KOMARI_CLOUDFLARED_BIN`
+  指定 `cloudflared` 二进制路径，适用于非 Docker 或自定义安装场景
+- `KOMARI_SECRET_KEY`
+  指定配置加密主密钥
+
+## 维护建议
+
+如果你后续继续维护这个分支，建议遵循以下原则：
+
+- 前端源码以 `frontend/komari-web` 为准，不要只改构建产物
+- 修改前端后要重新构建，并同步 `public/defaultTheme/dist`
+- 任何状态接口都不要返回明文 Token
+- 对“停止 tunnel”这类高风险操作保持显式二次确认
+- Docker 变更尽量保持“镜像内置 cloudflared”的体验一致性
+
+## 与上游的关系
+
+本项目不是对上游 Komari 的替代说明，而是一个基于上游继续开发、额外增加 Cloudflare Tunnel 支持的分支版本。
+
+对外说明时建议明确写为：
+
+```text
+komari-cloudflared
+基于 komari-monitor/komari 开发，增加内置 cloudflared 支持
+```
