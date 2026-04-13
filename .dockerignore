@@ -1,0 +1,11 @@
+.git
+.github
+data
+backup
+.env
+.env.local
+.vscode
+frontend/komari-web/node_modules
+frontend/komari-web/dist
+frontend/komari-web/bundle-analysis.html
+frontend/komari-web/.vite
