@@ -45,7 +45,13 @@ docker run -d \
 
 本仓库已经包含 `public/defaultTheme` 的前端构建产物，因此可以直接构建 Go 后端和 Docker 镜像。
 
-如果你要继续修改前端设置页逻辑，推荐在 `komari-web` 前端源码仓库中修改并重新构建，然后把新的 `dist` 覆盖到：
+如果你要继续修改前端设置页逻辑，前端源码已经并入当前仓库：
+
+```text
+frontend/komari-web
+```
+
+推荐在这个目录里修改并重新构建，然后把新的 `dist` 覆盖到：
 
 ```text
 public/defaultTheme/dist
