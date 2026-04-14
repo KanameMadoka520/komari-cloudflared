@@ -65,7 +65,15 @@ docker run -d \
 1. 进入后台设置页：`/admin/settings/reverse-proxy`
 2. 在 “Cloudflare Tunnel” 卡片中输入 Token
 3. 点击 `Start cloudflared`
-4. 返回 Cloudflare Zero Trust Dashboard，为该 tunnel 配置 Public Hostname，并指向 `http://localhost:25774`
+4. 返回 Cloudflare Zero Trust Dashboard，为该 tunnel 配置 Public Hostname
+   对于当前仓库提供的 Docker Compose 部署，源站应填写 `http://caddy:80`
+
+注意：
+
+- 对于本项目当前的 Docker Compose 部署，Cloudflare Tunnel 的 Public Hostname 源站必须填写 `http://caddy:80`
+- 不要在 Cloudflare Tunnel 配置里填写容器内的 `http://localhost:25774`
+- 如果你的页面主题、动态背景、头像或其他资源依赖 `/media/*`，绕过 Caddy 会直接导致这些资源无法加载
+- 典型现象是：本机访问正常，但通过公网域名访问时看不到动态背景、头像或其他媒体资源
 
 安全说明：
 

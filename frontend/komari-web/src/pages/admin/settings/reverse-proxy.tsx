@@ -235,6 +235,30 @@ export default function ReverseProxySettings() {
             </Text>
           </div>
 
+          <div className="rounded-md border border-amber-500/30 bg-amber-50/70 p-3 text-sm text-amber-950 dark:border-amber-400/20 dark:bg-amber-500/10 dark:text-amber-100">
+            <p className="font-medium">
+              {t("settings.reverse_proxy.hostname_hint_title", "Public Hostname 源站提示")}
+            </p>
+            <p className="mt-2">
+              {t(
+                "settings.reverse_proxy.hostname_hint_common",
+                "普通 Komari 页面可以直接指向容器内的 http://localhost:25774。",
+              )}
+            </p>
+            <p className="mt-2">
+              {t(
+                "settings.reverse_proxy.hostname_hint_media",
+                "如果你的主题或头像资源依赖 /media/*，Cloudflare Tunnel 的 Public Hostname 源站必须指向 Caddy，例如 http://caddy:80，而不是容器内的 http://localhost:25774。",
+              )}
+            </p>
+            <p className="mt-2">
+              {t(
+                "settings.reverse_proxy.hostname_hint_reason",
+                "原因是 /media/* 由反向代理层单独托管；绕过 Caddy 时，公网访问将拿不到动态背景、头像或其他外部媒体资源。",
+              )}
+            </p>
+          </div>
+
           <Flex gap="2" wrap="wrap">
             {!status.running ? (
               <Button

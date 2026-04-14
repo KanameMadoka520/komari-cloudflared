@@ -118,6 +118,25 @@
 - 默认监听端口为 `25774`
 - 默认 SQLite 数据路径为 `/app/data/komari.db`
 
+## Cloudflare Tunnel 源站填写注意事项
+
+如果你使用当前仓库提供的 Docker Compose 结构，并且站点主题依赖 `/media/*` 这类由反向代理层单独托管的静态资源，那么在 Cloudflare Zero Trust Dashboard 中配置 Public Hostname 时：
+
+- 应填写：`http://caddy:80`
+- 不应填写：`http://localhost:25774`
+
+原因是：
+
+- `cloudflared` 运行在 `komari` 容器内部
+- 容器内的 `localhost:25774` 指向的是 Komari 本体，而不是 Caddy
+- 一旦绕过 Caddy，`/media/*` 资源就不会被正确提供
+
+典型现象：
+
+- 本机访问正常
+- 公网域名访问时主题结构还在
+- 但动态背景、头像、视频海报或其他 `/media/*` 资源缺失
+
 ## 相关环境变量
 
 - `KOMARI_CLOUDFLARED_TOKEN`

@@ -33,6 +33,13 @@ https://monitor.example.com
 http://localhost:25774
 ```
 
+补充说明：
+
+- 上面这一段是在讲“远端机器访问面板应使用什么公网地址”
+- 但 Cloudflare Tunnel 自己在 Zero Trust Dashboard 中配置 Public Hostname 源站时，若你当前部署依赖 Caddy 托管 `/media/*`
+- 源站应填写 `http://caddy:80`
+- 不应填写容器内的 `http://localhost:25774`
+
 ## 二、面板端需要先做什么
 
 在远端机器接入之前，面板端需要完成以下准备。
