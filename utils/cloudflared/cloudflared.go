@@ -172,7 +172,7 @@ func (m *manager) start(token string) error {
 		return errors.New("cloudflared is not installed; install it manually or use the Docker image with built-in cloudflared")
 	}
 
-	cmd := exec.Command(binaryPath, "tunnel", "run", "--no-autoupdate")
+	cmd := exec.Command(binaryPath, "tunnel", "--no-autoupdate", "run")
 	cmd.Env = append(os.Environ(), "TUNNEL_TOKEN="+token)
 
 	stdout, err := cmd.StdoutPipe()
