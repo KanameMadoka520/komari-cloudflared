@@ -137,6 +137,12 @@
 - 公网域名访问时主题结构还在
 - 但动态背景、头像、视频海报或其他 `/media/*` 资源缺失
 
+如果你已经把 Public Hostname 源站改成了 `http://caddy:80`，但公网访问仍然表现异常，请优先检查 Cloudflare 缓存：
+
+- 先清理首页和 `/media/*` 相关资源缓存
+- 必要时直接执行 `Purge Everything`
+- 否则 Cloudflare 边缘节点可能继续返回旧的错误响应，即使源站链路已经修正
+
 ## 相关环境变量
 
 - `KOMARI_CLOUDFLARED_TOKEN`
