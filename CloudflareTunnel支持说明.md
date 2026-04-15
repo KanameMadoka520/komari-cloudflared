@@ -172,3 +172,35 @@
 komari-cloudflared
 基于 komari-monitor/komari 开发，增加内置 cloudflared 支持
 ```
+
+## 当前分支默认部署与 Caddy
+
+需要额外说明的是：
+
+- 当前 `komari-cloudflared` 分支的默认 Docker Compose 部署，默认带有 Caddy
+- 这样做不是因为 Cloudflare Tunnel 功能本身必须依赖 Caddy
+- 而是因为当前分支采用的主题资源方案，需要通过 `/media/*` 对外提供横屏动态背景、竖屏动态背景、视频封面图和头像挂件等媒体资源
+
+默认部署结构为：
+
+- `komari` 负责业务本体与 `cloudflared`
+- `caddy` 负责对外监听与 `/media/*` 静态资源托管
+
+更详细说明请阅读：
+
+- [`Caddy与动态背景说明.md`](./Caddy与动态背景说明.md)
+
+## 与上游 PR 的边界
+
+对于上游官方仓库 PR，我们保持边界清晰：
+
+- 提交 `cloudflared` 后端管理能力
+- 提交 Reverse Proxy / Cloudflare Tunnel 设置页
+- 提交 Docker 镜像内置 `cloudflared`
+
+不会把当前分支自己的这些部署细节一起提交到上游：
+
+- Caddy
+- `reference-media`
+- 本地动态背景资源
+- `/media/*` 静态托管方案

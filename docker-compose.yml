@@ -1,0 +1,37 @@
+services:
+  komari:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: komari-cloudflared:beta
+    container_name: komari
+    restart: unless-stopped
+    environment:
+      TZ: "${TZ:-Asia/Shanghai}"
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-change-me}"
+      KOMARI_CLOUDFLARED_TOKEN: "${KOMARI_CLOUDFLARED_TOKEN:-}"
+      KOMARI_SECRET_KEY: "${KOMARI_SECRET_KEY:-}"
+    volumes:
+      - ./data:/app/data
+    expose:
+      - "25774"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:25774/api/version >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: komari-caddy
+    restart: unless-stopped
+    depends_on:
+      komari:
+        condition: service_healthy
+    ports:
+      - "${KOMARI_PORT:-25774}:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./reference-media:/srv/reference-media:ro

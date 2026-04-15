@@ -53,3 +53,8 @@ komari
 /docker/.env
 /docker/data/
 /docker/reference-media/
+
+# root compose runtime
+/reference-media/*
+!/reference-media/.gitkeep
+!/reference-media/README.md

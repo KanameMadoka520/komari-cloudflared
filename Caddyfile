@@ -1,0 +1,10 @@
+:80 {
+    handle_path /media/* {
+        root * /srv/reference-media
+        file_server
+    }
+
+    handle {
+        reverse_proxy komari:25774
+    }
+}
