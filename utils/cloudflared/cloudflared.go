@@ -15,7 +15,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/komari-monitor/komari/config"
+	"github.com/komari-monitor/komari/pkg/config"
 	"github.com/komari-monitor/komari/utils/secureconfig"
 )
 
@@ -88,37 +88,14 @@ func RemoveToken() error {
 }
 
 func LoadToken() (token string, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("[cloudflared] config database is not ready yet, fallback to environment token")
-			token = strings.TrimSpace(os.Getenv("KOMARI_CLOUDFLARED_TOKEN"))
-			err = nil
-		}
-	}()
-
 	if envToken := strings.TrimSpace(os.Getenv("KOMARI_CLOUDFLARED_TOKEN")); envToken != "" {
 		if _, probeErr := config.GetAs[string](config.CloudflareTunnelTokenKey, ""); probeErr != nil {
 			return envToken, nil
 		}
+		return envToken, nil
 	}
 
-	raw, err := config.GetAs[string](config.CloudflareTunnelTokenKey, "")
-	if err != nil {
-		if envToken := strings.TrimSpace(os.Getenv("KOMARI_CLOUDFLARED_TOKEN")); envToken != "" {
-			return envToken, nil
-		}
-		return "", err
-	}
-	if strings.TrimSpace(raw) == "" {
-		return "", nil
-	}
-
-	token, err = secureconfig.DecryptString(raw)
-	if err == nil {
-		return token, nil
-	}
-
-	return raw, nil
+	return loadStoredToken()
 }
 
 func AutoStart(envToken string) error {
@@ -311,7 +288,7 @@ func (m *manager) status() RuntimeStatus {
 		status.PID = m.cmd.Process.Pid
 	}
 
-	token, err := LoadToken()
+	token, err := loadStoredToken()
 	if err == nil && strings.TrimSpace(token) != "" {
 		status.TokenStored = true
 	}
@@ -332,6 +309,30 @@ func (m *manager) appendLogLocked(line string) {
 	if len(m.logs) > m.maxLogLines {
 		m.logs = m.logs[len(m.logs)-m.maxLogLines:]
 	}
+}
+
+func loadStoredToken() (token string, err error) {
+	defer func() {
+		if recover() != nil {
+			token = ""
+			err = nil
+		}
+	}()
+
+	raw, err := config.GetAs[string](config.CloudflareTunnelTokenKey, "")
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(raw) == "" {
+		return "", nil
+	}
+
+	token, err = secureconfig.DecryptString(raw)
+	if err == nil {
+		return token, nil
+	}
+
+	return raw, nil
 }
 
 func resolveBinaryPath() (string, bool) {

@@ -58,3 +58,4 @@ komari
 /reference-media/*
 !/reference-media/.gitkeep
 !/reference-media/README.md
+.codex

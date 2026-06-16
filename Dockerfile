@@ -1,26 +1,35 @@
-FROM golang:1.24-bookworm AS builder
+FROM golang:1.26.4-alpine AS builder
 
 WORKDIR /src
 
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64
 
+RUN printf '%s\n' \
+      'https://mirrors.aliyun.com/alpine/v3.24/main' \
+      'https://mirrors.aliyun.com/alpine/v3.24/community' \
+      > /etc/apk/repositories \
+    && apk add --no-cache gcc musl-dev
+
 COPY go.mod go.sum ./
+ENV GOPROXY=https://goproxy.cn,direct
 RUN go mod download
 
 COPY . .
 
 RUN CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /out/komari .
 
-FROM debian:bookworm-slim
+FROM alpine:3.21
 
 WORKDIR /app
 
 ARG TARGETARCH=amd64
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl tzdata \
-    && rm -rf /var/lib/apt/lists/*
+RUN printf '%s\n' \
+      'https://mirrors.aliyun.com/alpine/v3.21/main' \
+      'https://mirrors.aliyun.com/alpine/v3.21/community' \
+      > /etc/apk/repositories \
+    && apk add --no-cache ca-certificates curl tzdata
 
 RUN set -eux; \
     case "${TARGETARCH}" in \
