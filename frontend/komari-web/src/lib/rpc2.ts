@@ -9,6 +9,7 @@ import type {
   RPC2EventListeners,
 } from "../types/rpc2";
 import { RPC2ConnectionState } from "../types/rpc2";
+import i18n from "../i18n/config";
 
 /**
  * RPC2 客户端类
@@ -26,8 +27,14 @@ export class RPC2Client {
   private reconnectAttempts = 0;
   private reconnectTimeout?: NodeJS.Timeout;
   private heartbeatInterval?: NodeJS.Timeout;
+  private stableConnectionTimeout?: NodeJS.Timeout;
+  private manualDisconnect = false;
+  private connectionGeneration = 0;
   private eventListeners: RPC2EventListeners = {};
- 
+
+  // Do not reset the retry counter for a connection that immediately flaps.
+  private readonly stableConnectionWindow = 10000;
+
   private readonly baseUrl: string;
   private readonly options: Required<RPC2ConnectionOptions>;
 
@@ -70,22 +77,33 @@ export class RPC2Client {
     this.eventListeners = { ...this.eventListeners, ...listeners };
   }
 
+  clearEventListeners(): void {
+    this.eventListeners = {};
+  }
+
   /**
    * 建立 WebSocket 连接
    */
   async connect(): Promise<void> {
-    if (this.connectionState === RPC2ConnectionState.CONNECTED || 
+    if (this.connectionState === RPC2ConnectionState.CONNECTED ||
         this.connectionState === RPC2ConnectionState.CONNECTING) {
       return;
     }
 
+    this.manualDisconnect = false;
+    const generation = ++this.connectionGeneration;
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = undefined;
+    }
     this.setConnectionState(RPC2ConnectionState.CONNECTING);
 
+    let socket: WebSocket | null = null;
     try {
       const wsUrl = this.getWebSocketUrl();
-      const ws = new WebSocket(wsUrl);
-      this.ws = ws;
-      this.setupWebSocketHandlers();
+      socket = new WebSocket(wsUrl);
+      this.ws = socket;
+      this.setupWebSocketHandlers(socket);
 
       // 等待连接建立（不覆盖已设置的处理器，避免丢失心跳与状态更新）
       await new Promise<void>((resolve, reject) => {
@@ -95,25 +113,48 @@ export class RPC2Client {
         };
         const handleError = () => {
           cleanup();
-          reject(new Error("WebSocket 连接失败"));
+          reject(new Error(i18n.t("rpc2.websocket_connection_failed")));
         };
         const timeout = setTimeout(() => {
           cleanup();
-          reject(new Error("WebSocket 连接超时"));
+          reject(new Error(i18n.t("rpc2.websocket_connection_timed_out")));
         }, 10000);
 
         const cleanup = () => {
           clearTimeout(timeout);
-          ws.removeEventListener("open", handleOpen);
-          ws.removeEventListener("error", handleError);
+          socket?.removeEventListener("open", handleOpen);
+          socket?.removeEventListener("error", handleError);
         };
 
-        ws.addEventListener("open", handleOpen, { once: true });
-        ws.addEventListener("error", handleError, { once: true });
+        socket?.addEventListener("open", handleOpen, { once: true });
+        socket?.addEventListener("error", handleError, { once: true });
       });
     } catch (error) {
-      this.setConnectionState(RPC2ConnectionState.ERROR);
+      if (generation !== this.connectionGeneration) {
+        socket?.close();
+        throw error;
+      }
+      if (socket && this.ws === socket) {
+        // A failed opening handshake does not always emit close in every
+        // browser, so close and detach it here before scheduling a retry.
+        this.ws = null;
+        if (socket.readyState !== WebSocket.CLOSED) {
+          socket.close();
+        }
+      } else if (socket) {
+        socket.close();
+      }
+      this.stopHeartbeat();
+      if (this.stableConnectionTimeout) {
+        clearTimeout(this.stableConnectionTimeout);
+        this.stableConnectionTimeout = undefined;
+      }
+      this.setConnectionState(RPC2ConnectionState.DISCONNECTED);
       this.eventListeners.onError?.(error as Error);
+      if (!this.manualDisconnect && this.options.autoReconnect &&
+          this.reconnectAttempts < this.options.maxReconnectAttempts) {
+        this.attemptReconnect();
+      }
       throw error;
     }
   }
@@ -122,13 +163,13 @@ export class RPC2Client {
    * 自动建立连接（非阻塞）
    */
   private autoConnect(): void {
-    if (this.connectionState !== RPC2ConnectionState.DISCONNECTED) {
+    if (this.manualDisconnect || this.connectionState !== RPC2ConnectionState.DISCONNECTED) {
       return;
     }
 
     // 异步尝试连接，不阻塞构造函数
     this.connect().catch((error) => {
-      console.warn("自动连接失败:", error.message);
+      console.warn(i18n.t("rpc2.automatic_connection_failed"), error.message);
       // 连接失败时，如果启用了自动重连，会在 onclose 处理器中进行重连
     });
   }
@@ -137,7 +178,8 @@ export class RPC2Client {
    * 断开 WebSocket 连接
    */
   disconnect(): void {
-    this.options.autoReconnect = false;
+    this.manualDisconnect = true;
+    this.connectionGeneration++;
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = undefined;
@@ -149,13 +191,19 @@ export class RPC2Client {
       this.heartbeatInterval = undefined;
     }
 
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
+    if (this.stableConnectionTimeout) {
+      clearTimeout(this.stableConnectionTimeout);
+      this.stableConnectionTimeout = undefined;
+    }
+
+    const socket = this.ws;
+    this.ws = null;
+    if (socket) {
+      socket.close();
     }
 
     this.setConnectionState(RPC2ConnectionState.DISCONNECTED);
-    this.clearPendingRequests(new Error("连接已断开"));
+    this.clearPendingRequests(new Error(i18n.t("rpc2.connection_disconnected")));
   }
 
   /**
@@ -167,7 +215,7 @@ export class RPC2Client {
     options: RPC2CallOptions = {}
   ): Promise<TResult> {
     if (this.connectionState !== RPC2ConnectionState.CONNECTED) {
-      throw new Error("WebSocket 未连接");
+      throw new Error(i18n.t("rpc2.websocket_not_connected"));
     }
 
     const request: JSONRPC2Request<TParams> = {
@@ -186,7 +234,9 @@ export class RPC2Client {
     return new Promise<TResult>((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.pendingRequests.delete(request.id!);
-        reject(new Error(`请求超时: ${method}`));
+        reject(
+          new Error(i18n.t("rpc2.request_timed_out", { method }))
+        );
       }, options.timeout || this.options.requestTimeout);
 
       this.pendingRequests.set(request.id!, {
@@ -195,7 +245,13 @@ export class RPC2Client {
         timeout,
       });
 
-      this.sendMessage(request);
+      try {
+        this.sendMessage(request);
+      } catch (error) {
+        this.pendingRequests.delete(request.id!);
+        clearTimeout(timeout);
+        reject(error);
+      }
     });
   }
 
@@ -213,13 +269,16 @@ export class RPC2Client {
       params,
       id: options.notification ? undefined : this.generateRequestId(),
     };
+    const requestAbort = this.createRequestAbort(
+      options.timeout || this.options.requestTimeout,
+    );
 
     try {
       const response = await fetch(this.baseUrl, {
         method: "POST",
         headers: this.options.headers,
         body: JSON.stringify(request),
-        signal: options.timeout ? AbortSignal.timeout(options.timeout) : undefined,
+        signal: requestAbort.signal,
       });
 
       if (!response.ok) {
@@ -231,7 +290,7 @@ export class RPC2Client {
       }
 
       const jsonResponse: JSONRPC2Response<TResult> = await response.json();
-      
+
       if ("error" in jsonResponse) {
         throw new Error(`RPC Error ${jsonResponse.error.code}: ${jsonResponse.error.message}`);
       }
@@ -241,7 +300,9 @@ export class RPC2Client {
       if (error instanceof Error) {
         throw error;
       }
-      throw new Error(`请求失败: ${method}`);
+      throw new Error(i18n.t("rpc2.request_failed", { method }));
+    } finally {
+      requestAbort.clear();
     }
   }
 
@@ -259,12 +320,14 @@ export class RPC2Client {
       params: req.params,
       id: req.notification ? undefined : this.generateRequestId(),
     }));
+    const requestAbort = this.createRequestAbort(this.options.requestTimeout);
 
     try {
       const response = await fetch(this.baseUrl, {
         method: "POST",
         headers: this.options.headers,
         body: JSON.stringify(batchRequest),
+        signal: requestAbort.signal,
       });
 
       if (!response.ok) {
@@ -272,7 +335,7 @@ export class RPC2Client {
       }
 
       const jsonResponse: JSONRPC2BatchResponse = await response.json();
-      
+
       return jsonResponse.map(res => {
         if ("error" in res) {
           throw new Error(`RPC Error ${res.error.code}: ${res.error.message}`);
@@ -283,8 +346,36 @@ export class RPC2Client {
       if (error instanceof Error) {
         throw error;
       }
-      throw new Error("批量请求失败");
+      throw new Error(i18n.t("rpc2.batch_request_failed"));
+    } finally {
+      requestAbort.clear();
     }
+  }
+
+  /**
+   * AbortSignal.timeout() is unavailable in older browsers and WebViews.
+   */
+  private createRequestAbort(timeout: number): {
+    signal: AbortSignal;
+    clear: () => void;
+  } {
+    const timeoutSignal = AbortSignal as typeof AbortSignal & {
+      timeout?: (milliseconds: number) => AbortSignal;
+    };
+
+    if (typeof timeoutSignal.timeout === "function") {
+      return {
+        signal: timeoutSignal.timeout(timeout),
+        clear: () => undefined,
+      };
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    return {
+      signal: controller.signal,
+      clear: () => clearTimeout(timeoutId),
+    };
   }
 
   /**
@@ -296,7 +387,7 @@ export class RPC2Client {
     options: RPC2CallOptions = {}
   ): Promise<TResult> {
     // 如果启用了自动连接，且当前未连接，尝试建立连接（不阻塞使用 HTTP 回退）
-    if (this.options.autoConnect && 
+    if (this.options.autoConnect &&
         this.connectionState === RPC2ConnectionState.DISCONNECTED) {
       this.autoConnect();
     }
@@ -307,14 +398,9 @@ export class RPC2Client {
     if (this.connectionState === RPC2ConnectionState.CONNECTED) {
       try {
         return await this.callViaWebSocket(method, params, options);
-      } catch (wsErr) {
+      } catch {
         // 回退一次 HTTP
-        try {
-          return await this.callViaHTTP(method, params, options);
-        } catch (httpErr) {
-          // HTTP 也失败，抛出 HTTP 错误（信息更贴近最终失败原因）
-          throw httpErr;
-        }
+        return this.callViaHTTP(method, params, options);
       }
     }
 
@@ -328,51 +414,69 @@ export class RPC2Client {
     return `${protocol}//${host}${this.baseUrl}`;
   }
 
-  private setupWebSocketHandlers(): void {
-    if (!this.ws) return;
-
-    this.ws.onopen = () => {
+  private setupWebSocketHandlers(socket: WebSocket): void {
+    socket.onopen = () => {
+      if (this.ws !== socket) return;
       this.setConnectionState(RPC2ConnectionState.CONNECTED);
-      this.reconnectAttempts = 0;
+      if (this.stableConnectionTimeout) {
+        clearTimeout(this.stableConnectionTimeout);
+      }
+      this.stableConnectionTimeout = setTimeout(() => {
+        if (this.ws === socket && this.connectionState === RPC2ConnectionState.CONNECTED) {
+          this.reconnectAttempts = 0;
+        }
+        this.stableConnectionTimeout = undefined;
+      }, this.stableConnectionWindow);
       this.startHeartbeat(); // 启动心跳包
       this.eventListeners.onConnect?.();
     };
 
-    this.ws.onmessage = (event) => {
+    socket.onmessage = (event) => {
+      if (this.ws !== socket) return;
       try {
         const data = JSON.parse(event.data);
         this.handleMessage(data);
         this.eventListeners.onMessage?.(data);
       } catch (error) {
-        console.error("解析 WebSocket 消息失败:", error);
+        console.error(i18n.t("rpc2.parse_websocket_message_failed"), error);
       }
     };
 
-    this.ws.onclose = () => {
+    socket.onclose = () => {
+      if (this.ws !== socket) return;
+      this.ws = null;
       this.setConnectionState(RPC2ConnectionState.DISCONNECTED);
       this.stopHeartbeat(); // 停止心跳包
+      if (this.stableConnectionTimeout) {
+        clearTimeout(this.stableConnectionTimeout);
+        this.stableConnectionTimeout = undefined;
+      }
+      this.clearPendingRequests(new Error(i18n.t("rpc2.connection_disconnected")));
       this.eventListeners.onDisconnect?.();
-      
-      if (this.options.autoReconnect && 
+
+      if (!this.manualDisconnect && this.options.autoReconnect &&
           this.reconnectAttempts < this.options.maxReconnectAttempts) {
         this.attemptReconnect();
       }
     };
 
-    this.ws.onerror = (error) => {
-      console.error("WebSocket 错误:", error);
-      this.eventListeners.onError?.(new Error("WebSocket 连接错误"));
+    socket.onerror = (error) => {
+      if (this.ws !== socket) return;
+      console.error(i18n.t("rpc2.websocket_error"), error);
+      this.eventListeners.onError?.(
+        new Error(i18n.t("rpc2.websocket_connection_error"))
+      );
     };
   }
 
   private handleMessage(data: JSONRPC2Response): void {
-    if (!data.id) return; // 忽略通知响应
+    if (data.id === undefined || data.id === null) return; // 忽略通知响应
 
     const pending = this.pendingRequests.get(data.id);
     if (!pending) return;
 
     this.pendingRequests.delete(data.id);
-    
+
     if (pending.timeout) {
       clearTimeout(pending.timeout);
     }
@@ -386,7 +490,7 @@ export class RPC2Client {
 
   private sendMessage(message: JSONRPC2Request): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      throw new Error("WebSocket 未连接");
+      throw new Error(i18n.t("rpc2.websocket_not_connected"));
     }
 
     this.ws.send(JSON.stringify(message));
@@ -418,10 +522,10 @@ export class RPC2Client {
     if (!this.options.enableHeartbeat) {
       return;
     }
-    
+
     // 先清理之前的心跳包定时器
     this.stopHeartbeat();
-    
+
     // 按配置的间隔发送心跳包
     this.heartbeatInterval = setInterval(() => {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -434,7 +538,7 @@ export class RPC2Client {
           };
           this.ws.send(JSON.stringify(heartbeatRequest));
         } catch (error) {
-          console.warn("发送心跳包失败:", error);
+          console.warn(i18n.t("rpc2.send_heartbeat_failed"), error);
         }
       }
     }, this.options.heartbeatInterval);
@@ -451,13 +555,16 @@ export class RPC2Client {
   }
 
   private attemptReconnect(): void {
+    if (this.reconnectTimeout || this.manualDisconnect) return;
     this.reconnectAttempts++;
     this.setConnectionState(RPC2ConnectionState.RECONNECTING);
     this.eventListeners.onReconnecting?.(this.reconnectAttempts);
 
     this.reconnectTimeout = setTimeout(() => {
+      this.reconnectTimeout = undefined;
+      if (this.manualDisconnect) return;
       this.connect().catch(() => {
-        // 重连失败会触发 onclose，从而继续重连或停止
+        // Failed handshakes are scheduled by connect() when no close event is emitted.
       });
     }, this.options.reconnectInterval);
   }

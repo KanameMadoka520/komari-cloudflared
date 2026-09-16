@@ -31,31 +31,19 @@ go.work.sum
 
 # env file
 .env
-.env.local
-.env.development
-.env.production
 
 # build
 komari
+/dist/
+.codex
 
-# frontend workspace
+/web/filemanager/data
+# Local-only build and development artifacts
+/node_modules/
 /frontend/komari-web/node_modules/
 /frontend/komari-web/dist/
 /frontend/komari-web/.vite/
-/frontend/komari-web/.env.local
-/frontend/komari-web/.env.development
-/frontend/komari-web/.env.development.local
-/frontend/komari-web/.env.production.local
-/frontend/komari-web/.env.test.local
 /frontend/komari-web/bundle-analysis.html
-
-# docker runtime if kept inside the repo in the future
-/docker/.env
-/docker/data/
-/docker/reference-media/
-
-# root compose runtime
-/reference-media/*
-!/reference-media/.gitkeep
-!/reference-media/README.md
-.codex
+/build/
+.env.*
+!.env.example

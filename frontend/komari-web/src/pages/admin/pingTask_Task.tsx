@@ -28,6 +28,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   Button,
+  Checkbox,
   Dialog,
   Flex,
   IconButton,
@@ -71,18 +72,17 @@ export const TaskView = ({ pingTasks }: { pingTasks: PingTask[] }) => {
         __originalCount?: number;
       })[];
     const nodeUuidSet = new Set(nodeDetail.map((n) => n.uuid));
-    return pingTasks
-      .map((task) => {
-        const original = task.clients || [];
-        const existing = original.filter((uuid) => nodeUuidSet.has(uuid));
-        const allDeleted = original.length > 0 && existing.length === 0;
-        return {
-          ...task,
-          clients: existing,
-          __allClientsDeleted: allDeleted,
-          __originalCount: original.length,
-        };
-      });
+    return pingTasks.map((task) => {
+      const original = task.clients || [];
+      const existing = original.filter((uuid) => nodeUuidSet.has(uuid));
+      const allDeleted = original.length > 0 && existing.length === 0;
+      return {
+        ...task,
+        clients: existing,
+        __allClientsDeleted: allDeleted,
+        __originalCount: original.length,
+      };
+    });
   }, [pingTasks, nodeDetail]);
 
   const [localTasks, setLocalTasks] = React.useState(processedTasks);
@@ -136,7 +136,7 @@ export const TaskView = ({ pingTasks }: { pingTasks: PingTask[] }) => {
   };
 
   return (
-    <div className="rounded-xl overflow-hidden">
+    <div className="km-page-admin-pingtask-task km-pingtask-task-table rounded-xl overflow-hidden">
       <Table>
         <TableHeader>
           <TableRow>
@@ -144,7 +144,7 @@ export const TaskView = ({ pingTasks }: { pingTasks: PingTask[] }) => {
             <TableHead>{t("common.name")}</TableHead>
             <TableHead>{t("common.server")}</TableHead>
             <TableHead>{t("ping.target")}</TableHead>
-            <TableHead>{t("ping.type")}</TableHead>
+            <TableHead>{t("common.type")}</TableHead>
             <TableHead>{t("ping.interval")}</TableHead>
             <TableHead>{t("common.action")}</TableHead>
           </TableRow>
@@ -195,10 +195,15 @@ const Row = ({
     type: task.type || "icmp",
     target: task.target || "",
     clients: task.clients || [],
+    default_on: task.default_on || false,
     interval: task.interval || 60,
   });
 
   const submitEdit = (newForm: typeof form) => {
+    if (!newForm.default_on && newForm.clients.length === 0) {
+      toast.error(t("ping.default_on_description"));
+      return;
+    }
     setEditSaving(true);
     fetch("/api/admin/ping/edit", {
       method: "POST",
@@ -210,6 +215,7 @@ const Row = ({
             name: newForm.name,
             type: newForm.type,
             target: newForm.target,
+            default_on: newForm.default_on,
             clients: newForm.clients,
             interval: newForm.interval,
           },
@@ -307,14 +313,24 @@ const Row = ({
                   : joined;
               })()
             : t("common.none")}
+          {task.default_on && (
+            <span className="text-xs text-accent-11">
+              {t("ping.default_on_short")}
+            </span>
+          )}
           <NodeSelectorDialog
             value={form.clients ?? []}
             onChange={(uuids) => {
-              setForm((f) => ({ ...f, clients: uuids }));
-              submitEdit({ ...form, clients: uuids });
+              const nextForm = { ...form, clients: uuids };
+              setForm(nextForm);
+              submitEdit(nextForm);
             }}
           >
-            <IconButton variant="ghost">
+            <IconButton
+              variant="ghost"
+              title={t("common.select_clients", "Select clients")}
+              aria-label={t("common.select_clients", "Select clients")}
+            >
               <MoreHorizontal size="16" />
             </IconButton>
           </NodeSelectorDialog>
@@ -327,11 +343,15 @@ const Row = ({
         {/* 编辑按钮 */}
         <Dialog.Root open={editOpen} onOpenChange={setEditOpen}>
           <Dialog.Trigger>
-            <IconButton variant="soft">
+            <IconButton
+              variant="soft"
+              title={t("common.edit", "Edit")}
+              aria-label={t("common.edit", "Edit")}
+            >
               <Pencil size="16" />
             </IconButton>
           </Dialog.Trigger>
-          <Dialog.Content>
+          <Dialog.Content className="km-pingtask-task-form">
             <Dialog.Title>{t("common.edit")}</Dialog.Title>
             <form onSubmit={handleEdit} className="flex flex-col gap-2">
               <label>{t("common.name")}</label>
@@ -342,7 +362,7 @@ const Row = ({
                 }
                 required
               />
-              <label>{t("ping.type")}</label>
+              <label>{t("common.type")}</label>
               <Select.Root
                 value={form.type}
                 onValueChange={(v) =>
@@ -365,11 +385,26 @@ const Row = ({
                 required
               />
               <label>{t("common.server")}</label>
-              <Flex>
+              <Flex direction="column" gap="2">
                 <NodeSelectorDialog
                   value={form.clients}
                   onChange={(v) => setForm((f) => ({ ...f, clients: v }))}
                 />
+                <label className="text-sm font-normal text-gray-500">
+                  {t("common.selected", { count: form.clients.length })}
+                </label>
+                <label className="flex min-h-10 items-center gap-2 text-sm font-normal">
+                  <Checkbox
+                    checked={form.default_on}
+                    onCheckedChange={(checked) =>
+                      setForm((f) => ({ ...f, default_on: !!checked }))
+                    }
+                  />
+                  <span>{t("ping.default_on")}</span>
+                </label>
+                <label className="text-sm font-normal text-gray-500">
+                  {t("ping.default_on_description")}
+                </label>
               </Flex>
               <label>
                 {t("ping.interval")} ({t("time.second")})
@@ -403,7 +438,12 @@ const Row = ({
         {/* 删除按钮 */}
         <Dialog.Root open={deleteOpen} onOpenChange={setDeleteOpen}>
           <Dialog.Trigger>
-            <IconButton variant="soft" color="red">
+            <IconButton
+              variant="soft"
+              color="red"
+              title={t("common.delete", "Delete")}
+              aria-label={t("common.delete", "Delete")}
+            >
               <Trash size="16" />
             </IconButton>
           </Dialog.Trigger>

@@ -14,6 +14,10 @@ import (
 // 为了便于扩展，字段保持冗余：既保存结构体，也保存对应 UUID / Token。
 // 未来如需添加字段（如 IP、UserAgent、TraceID 等）直接在此结构体上扩展即可。
 type ContextMeta struct {
+	// Principal 调用主体(身份 + 能力)。新身份模型的权威来源,由身份识别层统一构建。
+	// Permission 字段保留用于向后兼容,等价于 Principal.PrimaryRole()。
+	Principal *Principal
+
 	// Permission 当前权限分组 guest/client/admin
 	Permission string
 	// User 登录的管理员用户（仅 admin 会话存在）
@@ -24,10 +28,14 @@ type ContextMeta struct {
 	ClientToken string
 	// ClientUUID 解析出的客户端 UUID（若 token 合法）
 	ClientUUID string
+	// SessionToken 当前管理员会话的 session token（仅 admin 会话存在，用于区分当前会话等场景）
+	SessionToken string
 	// RemoteIP 请求来源 IP（可选）
 	RemoteIP string
 	// UserAgent 请求 UA（可选）
 	UserAgent string
+	// TempShareValid 临时分享访问许可是否有效（基于 temp_key cookie 校验，由传输层填充）
+	TempShareValid bool
 }
 
 // 私有类型做 key，避免外部冲突

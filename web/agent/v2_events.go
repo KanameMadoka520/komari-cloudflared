@@ -15,6 +15,10 @@ const (
 	v2EventQueueLimit = 128
 	v2EventTTL        = 5 * time.Minute
 	v2PingEventTTL    = 3 * time.Second
+	// File operations may include a remote read/search with a 90 second
+	// deadline, so queued file commands need a little headroom while an agent
+	// reconnects.
+	v2FileEventTTL = 2 * time.Minute
 )
 
 type v2EventQueue struct {
@@ -37,6 +41,9 @@ func getV2EventQueueLocked(uuid string) *v2EventQueue {
 }
 
 func DispatchV2Event(uuid, method string, params any) bool {
+	if !IsV2Client(uuid) {
+		return false
+	}
 	if conn := GetConnectedClients()[uuid]; conn != nil {
 		payload := v2.Request{JSONRPC: v2.Version, Method: method, Params: params}
 		if conn.WriteJSON(payload) == nil {
@@ -50,11 +57,11 @@ func DispatchV2Event(uuid, method string, params any) bool {
 	return true
 }
 
-func DispatchPing(uuid string, legacy any, params v2.PingParams) bool {
+func DispatchPing(uuid string, params v2.PingParams) bool {
 	if conn := GetConnectedClients()[uuid]; conn != nil {
-		payload := legacy
-		if IsV2Client(uuid) {
-			payload = v2.Request{JSONRPC: v2.Version, Method: v2.MethodAgentPing, Params: params}
+		var payload any = v2.Request{JSONRPC: v2.Version, Method: v2.MethodAgentPing, Params: params}
+		if !IsV2Client(uuid) {
+			payload = map[string]any{"message": "ping", "ping_task_id": params.TaskID, "ping_type": params.Type, "ping_target": params.Target}
 		}
 		if conn.WriteJSON(payload) == nil {
 			return true
@@ -75,17 +82,19 @@ func IsAgentOnline(uuid string) bool {
 }
 
 func EnqueueV2Event(uuid, method string, params any) v2.Event {
-	now := time.Now()
+	now := time.Now().UTC()
 	ttl := v2EventTTL
 	if method == v2.MethodAgentPing {
 		ttl = v2PingEventTTL
+	} else if method == v2.MethodAgentFile {
+		ttl = v2FileEventTTL
 	}
 	event := v2.Event{
 		ID:        newV2EventID(),
 		Method:    method,
 		Params:    params,
-		CreatedAt: now.Format(time.RFC3339Nano),
-		ExpiresAt: now.Add(ttl).Format(time.RFC3339Nano),
+		CreatedAt: now,
+		ExpiresAt: now.Add(ttl),
 	}
 
 	v2EventMu.Lock()
@@ -126,6 +135,13 @@ func coalesceV2EventLocked(q *v2EventQueue, event v2.Event) {
 }
 
 func v2EventCoalesceKey(event v2.Event) string {
+	if event.Method == v2.MethodAgentTerminal {
+		var params v2.TerminalRequestParams
+		if err := bindV2EventParams(event.Params, &params); err == nil && params.RequestID != "" {
+			return event.Method + ":" + params.RequestID
+		}
+		return ""
+	}
 	if event.Method != v2.MethodAgentPing {
 		return ""
 	}
@@ -165,15 +181,14 @@ func pruneExpiredV2EventsLocked(q *v2EventQueue) {
 	if len(q.events) == 0 {
 		return
 	}
-	now := time.Now()
+	now := time.Now().UTC()
 	filtered := q.events[:0]
 	for _, event := range q.events {
-		if event.ExpiresAt == "" {
+		if event.ExpiresAt.IsZero() {
 			filtered = append(filtered, event)
 			continue
 		}
-		expiresAt, err := time.Parse(time.RFC3339Nano, event.ExpiresAt)
-		if err != nil || expiresAt.After(now) {
+		if event.ExpiresAt.After(now) {
 			filtered = append(filtered, event)
 		}
 	}

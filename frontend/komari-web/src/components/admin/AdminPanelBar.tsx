@@ -8,7 +8,7 @@ import {
   Text,
 } from "@radix-ui/themes";
 import { AnimatePresence, motion } from "framer-motion"; // 引入 Framer Motion
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation /*useNavigate*/ } from "react-router-dom";
 import ColorSwitch from "../ColorSwitch";
@@ -17,16 +17,26 @@ import ThemeSwitch from "../ThemeSwitch";
 import { useIsMobile } from "@/hooks/use-mobile";
 import menuConfig from "../../config/menuConfig.json";
 import type { MenuItem } from "../../types/menu";
-import { iconMap } from "../../utils/iconHelper";
+import { iconMap, resolvePluginIcon } from "../../utils/iconHelper";
 import { ChevronDownIcon } from "@radix-ui/react-icons";
 import { TablerMenu2 } from "../Icones/Tabler";
 import LoginDialog from "../Login";
+import InlineSvgIcon from "../InlineSvgIcon";
+import { useAdminNavigation } from "@/contexts/AdminNavigationContext";
 import { useAccount } from "@/contexts/AccountContext";
 import { usePublicInfo } from "@/contexts/PublicInfoContext";
 import Tips from "../ui/tips";
 import { CircleFadingArrowUp } from "lucide-react";
 import { useRPC2Call } from "@/contexts/RPC2Context";
 import { resolveI18nText } from "@/utils/i18nText";
+import type { PluginInfo } from "@/types/plugin";
+import {
+  getThemeConfigurationType,
+  normalizeThemeRedirectTarget,
+  THEME_CONFIGURATION_MANAGED,
+  THEME_CONFIGURATION_RAW,
+  THEME_CONFIGURATION_REDIRECT,
+} from "@/utils/themeConfiguration";
 
 function formatVersionLabel(version?: string, hash?: string) {
   if (!version) return "";
@@ -40,6 +50,7 @@ const baseMenuItems = (menuConfig as { menu: MenuItem[] }).menu;
 // 扩展的菜单项类型（允许直接提供 rawLabel 而不是多语言 key）
 interface ExtendedMenuItem extends MenuItem {
   rawLabel?: string; // 不走 i18n，直接显示
+  reloadDocument?: boolean;
 }
 
 interface AdminPanelBarProps {
@@ -57,7 +68,11 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
   const ishttps = window.location.protocol === "https:";
   const [t, i18n] = useTranslation();
   const location = useLocation();
+  const isConfigFormPage =
+    location.pathname === "/admin/theme_managed" ||
+    location.pathname === "/admin/plugins/config";
   const { publicInfo } = usePublicInfo();
+  const { refreshVersion } = useAdminNavigation();
   //const navigate = useNavigate();
   // 获取版本信息
   const [versionInfo, setVersionInfo] = useState<{
@@ -86,8 +101,9 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
 
   const currentTheme = publicInfo?.theme;
 
-  // 动态扩展菜单
+  // 动态扩展菜单（主题 + 插件注入页面）
   const [extraMenuItems, setExtraMenuItems] = useState<ExtendedMenuItem[]>([]);
+  const [pluginMenuItems, setPluginMenuItems] = useState<ExtendedMenuItem[]>([]);
 
   useEffect(() => {
     let ignore = false;
@@ -106,7 +122,25 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
         if (ignore) return;
         const cfg = data?.configuration;
         if (!cfg) {
-          // 没有 configuration 字段则不扩展
+          setExtraMenuItems([]);
+          return;
+        }
+
+        const cfgType = getThemeConfigurationType(cfg);
+        let itemPath: string | null = null;
+        if (
+          cfgType === THEME_CONFIGURATION_MANAGED &&
+          Array.isArray(cfg.data) &&
+          cfg.data.length > 0
+        ) {
+          itemPath = "/admin/theme_managed";
+        } else if (cfgType === THEME_CONFIGURATION_RAW) {
+          itemPath = "/admin/theme_raw";
+        } else if (cfgType === THEME_CONFIGURATION_REDIRECT) {
+          itemPath = normalizeThemeRedirectTarget(cfg.data);
+        }
+
+        if (!itemPath) {
           setExtraMenuItems([]);
           return;
         }
@@ -119,8 +153,9 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
         const item: ExtendedMenuItem = {
           labelKey: rawLabel,
           rawLabel,
-          path: "/admin/theme_managed",
+          path: itemPath,
           icon,
+          reloadDocument: cfgType === THEME_CONFIGURATION_REDIRECT,
         };
         setExtraMenuItems([item]);
       } catch (e) {
@@ -132,7 +167,59 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
     return () => {
       ignore = true;
     };
-  }, [currentTheme]);
+  }, [currentTheme, refreshVersion]);
+  // 插件注入的管理页面：manifest pages（visibility=admin）-> 插件菜单的二级菜单。
+  // iframe 页面进入 plugin-page 路由；redirect 页面复用主题的站内跳转校验。
+  useEffect(() => {
+    let ignore = false;
+    async function loadPluginMenu() {
+      try {
+        const result = await call<any, PluginInfo[]>("admin:listPlugins");
+        if (ignore || !Array.isArray(result)) return;
+        const pluginIconUrl = (plugin: PluginInfo, icon?: string) =>
+          resolvePluginIcon(plugin.short, icon) || "Blocks";
+        const items: ExtendedMenuItem[] = [];
+        for (const plugin of result) {
+          if (!plugin.enabled) continue; // 未启用的插件不注入导航菜单
+          for (const page of plugin.pages || []) {
+            if (page.visibility === "public") continue; // 公开页面走公开路由，不进后台导航
+            const label =
+              resolveI18nText(page.title, currentLanguage) ||
+              resolveI18nText(plugin.name, currentLanguage) ||
+              plugin.short;
+            const pageType = page.type || "iframe";
+            if (pageType === "redirect") {
+              const target = normalizeThemeRedirectTarget(page.url);
+              if (!target) continue;
+              items.push({
+                labelKey: label,
+                rawLabel: label,
+                path: target,
+                icon: pluginIconUrl(plugin, page.icon),
+                reloadDocument: true, // 与主题 redirect 一致：整页跳转到站内路径
+              });
+              continue;
+            }
+            items.push({
+              labelKey: label,
+              rawLabel: label,
+              path: `/admin/plugin-page?short=${encodeURIComponent(plugin.short)}&file=${encodeURIComponent(page.file || "")}`,
+              icon: pluginIconUrl(plugin, page.icon),
+            });
+          }
+        }
+        if (!ignore) setPluginMenuItems(items);
+      } catch (e) {
+        console.warn("加载插件菜单失败:", e);
+        if (!ignore) setPluginMenuItems([]);
+      }
+    }
+    loadPluginMenu();
+    return () => {
+      ignore = true;
+    };
+  }, [call, currentLanguage, refreshVersion]);
+
   useEffect(() => {
     const fetchVersionInfo = async () => {
       try {
@@ -221,21 +308,47 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
     return () => window.removeEventListener("resize", handleResize);
   }, [isMobile]);
 
-  // 根据路径自动展开子菜单（包含动态扩展项）
+  // 主题配置和插件注入页面分别作为“主题”“插件”主菜单的二级菜单。
+  const mergedBaseMenuItems: ExtendedMenuItem[] = useMemo(() => {
+    return baseMenuItems.map((item) => {
+      if (item.labelKey === "theme.menu" && extraMenuItems.length > 0) {
+        return {
+          ...item,
+          children: [...(item.children || []), ...extraMenuItems],
+        };
+      }
+      if (item.labelKey === "plugin.title" && pluginMenuItems.length > 0) {
+        return {
+          ...item,
+          children: [...(item.children || []), ...pluginMenuItems],
+        };
+      }
+      return item;
+    });
+  }, [extraMenuItems, pluginMenuItems]);
+  const bottomStartPath = mergedBaseMenuItems.find(
+    (item) => item.bottom,
+  )?.path;
+
+  // 根据路径自动展开子菜单（包含动态扩展项；plugin-page 用 query 定位文件，
+  // 因此子菜单匹配基于 pathname 部分）
   useEffect(() => {
     const newState: { [key: string]: boolean } = {};
-    const combined: ExtendedMenuItem[] = [...baseMenuItems, ...extraMenuItems];
+    const combined: ExtendedMenuItem[] = mergedBaseMenuItems;
     combined.forEach((item) => {
       if (item.children) {
-        newState[item.path] = item.children.some(
-          (child: MenuItem) =>
-            location.pathname === child.path ||
-            location.pathname.startsWith(child.path),
-        );
+        newState[item.path] = item.children.some((child: MenuItem) => {
+          const childPath = child.path.split("?")[0];
+          return (
+            location.pathname === childPath ||
+            (childPath !== "/" &&
+              location.pathname.startsWith(childPath + "/"))
+          );
+        });
       }
     });
     setOpenSubMenus(newState);
-  }, [location.pathname, extraMenuItems]);
+  }, [location.pathname, extraMenuItems, mergedBaseMenuItems]);
 
   // 侧边栏动画变体
   const sidebarVariants = {
@@ -283,18 +396,19 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
   return (
     <>
       <Grid
+        className="km-admin-layout km-admin-panel-bar"
         columns={{ initial: "1fr", md: sidebarOpen ? "240px 1fr" : "0px 1fr" }} // 动态调整网格列
         rows={{ initial: "auto 1fr", md: "auto 1fr" }}
         style={{
           height: "100vh",
           width: "100vw",
-          overflow: "auto",
+          overflow: "hidden",
           backgroundColor: "var(--accent-1)",
         }}
       >
         {/* Navbar */}
         <motion.nav
-          className="col-span-2"
+          className="km-admin-panel-topbar col-span-2"
           initial={{ y: 0 }}
           animate={{ y: 0 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
@@ -310,6 +424,8 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
               <IconButton
                 variant="ghost"
                 onClick={() => setSidebarOpen(!sidebarOpen)}
+                title={t("common.menu_sidebar", "Menu")}
+                aria-label={t("common.menu_sidebar", "Menu")}
                 style={{
                   display: isMobile && sidebarOpen ? "none" : "flex",
                   color: "var(--gray-11)",
@@ -389,7 +505,7 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
                     formatVersionLabel(versionInfo.version, versionInfo.hash))}
               </label>
             </Flex>
-            <Flex gap="3" align="center" overflowX="auto">
+            <Flex gap="3" align="center" overflowX="auto" className="km-admin-panel-controls">
               {account && !account.logged_in && (
                 <LoginDialog
                   autoOpen={true}
@@ -402,7 +518,14 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
               <ThemeSwitch />
               <ColorSwitch />
               <LanguageSwitch />
-              <IconButton variant="soft" color="orange" onClick={logout}>
+              <IconButton
+                variant="soft"
+                color="orange"
+                className="km-admin-panel-account"
+                onClick={logout}
+                title={t("common.logout", "Logout")}
+                aria-label={t("common.logout", "Logout")}
+              >
                 <ExitIcon />
               </IconButton>
             </Flex>
@@ -416,6 +539,7 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
             initial="closed"
             animate={sidebarOpen ? "open" : "closed"}
             exit="closed"
+            className="km-admin-panel-nav"
             style={{
               backgroundColor: "var(--accent-1)",
               height: "100%",
@@ -436,6 +560,8 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
               {/* 关闭按钮 */}
               <IconButton
                 variant="soft"
+                title={t("common.close_sidebar", "Close menu")}
+                aria-label={t("common.close_sidebar", "Close menu")}
                 style={{
                   display: isMobile ? "flex" : "none",
                   margin: "8px 0px 0px 8px",
@@ -451,7 +577,7 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
                 className="h-full md:mt-0 mt-6"
                 style={{ width: "100%" }}
               >
-                {[...baseMenuItems, ...extraMenuItems].map(
+                {mergedBaseMenuItems.map(
                   (item: ExtendedMenuItem) => {
                     // 支持 icon 为 URL/相对路径
                     const isOpen = openSubMenus[item.path];
@@ -464,7 +590,7 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
                       const link = /^(https?:\/\/|\/|\.\/|\.\.\/)/.test(icon);
                       if (link) {
                         return (
-                          <img
+                          <InlineSvgIcon
                             src={icon}
                             alt={t(labelKey)}
                             style={{
@@ -594,6 +720,9 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
                                     isMobile && setSidebarOpen(false)
                                   }
                                   newTab={child.newTab}
+                                  reloadDocument={
+                                    (child as ExtendedMenuItem).reloadDocument
+                                  }
                                 />
                               ))}
                             </Flex>
@@ -601,19 +730,30 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
                         </div>
                       );
                     }
+                    const isBottomStart =
+                      item.bottom && item.path === bottomStartPath;
                     return (
-                      <SidebarItem
+                      <div
                         key={item.path}
-                        to={item.path}
-                        icon={renderIcon(
-                          item.icon,
-                          item.labelKey,
-                          "flex w-4 h-5 items-center justify-center",
-                        )}
-                        children={item.rawLabel || t(item.labelKey)}
-                        onClick={() => isMobile && setSidebarOpen(false)}
-                        newTab={item.newTab}
-                      />
+                        style={
+                          isBottomStart
+                            ? { marginTop: "auto" }
+                            : undefined
+                        }
+                      >
+                        <SidebarItem
+                          to={item.path}
+                          icon={renderIcon(
+                            item.icon,
+                            item.labelKey,
+                            "flex w-4 h-5 items-center justify-center",
+                          )}
+                          children={item.rawLabel || t(item.labelKey)}
+                          onClick={() => isMobile && setSidebarOpen(false)}
+                          newTab={item.newTab}
+                          reloadDocument={item.reloadDocument}
+                        />
+                      </div>
                     );
                   },
                 )}
@@ -626,10 +766,12 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
         <motion.div
           variants={contentVariants}
           animate={sidebarOpen ? "open" : "closed"}
+          className="km-admin-panel-content"
           style={{
             backgroundColor: "var(--accent-3)",
             display: isMobile && sidebarOpen ? "none" : "block",
             height: "100%", // Ensure the container takes full height
+            minHeight: 0,
             overflow: "hidden", // Prevent this container from scrolling
           }}
         >
@@ -637,9 +779,12 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
             style={{
               backgroundColor: "var(--accent-1)",
               height: "100%",
+              minHeight: 0,
               borderRadius: "0",
               padding: isMobile ? "8px" : "16px",
-              overflowY: "auto",
+              overflowY: isConfigFormPage ? "hidden" : "auto",
+              display: isConfigFormPage ? "flex" : "block",
+              flexDirection: isConfigFormPage ? "column" : undefined,
               boxSizing: "border-box",
             }}
           >
@@ -662,7 +807,11 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
                 </Text>
               </Callout.Text>
             </Callout.Root>
-            {content}
+            {isConfigFormPage ? (
+              <div className="min-h-0 flex-1">{content}</div>
+            ) : (
+              content
+            )}
           </div>
         </motion.div>
       </Grid>
@@ -679,29 +828,35 @@ const SidebarItem = ({
   icon,
   children,
   newTab,
+  reloadDocument,
 }: {
   to: string;
   onClick: () => void;
   icon: ReactNode;
   children: ReactNode;
   newTab?: boolean;
+  reloadDocument?: boolean;
 }) => {
   const location = useLocation();
   const isExternalLink = to.startsWith("http://") || to.startsWith("https://");
+  // 带 query 的菜单项（如 /admin/plugin-page?short=x）做全匹配；不带 query
+  // 的菜单项只比 pathname（如 /admin/plugins/config?short=x 点亮“插件配置”），
+  // 同时避免前缀兄弟路由（/admin/plugins 与 /admin/plugins/config）同时点亮。
   const isActive =
     !isExternalLink &&
     to !== "/" &&
-    (location.pathname === to ||
-      (to !== "/admin" && location.pathname.startsWith(to)));
+    (to.includes("?")
+      ? location.pathname + location.search === to
+      : location.pathname === to.split("?")[0]);
   const openInNewTab = newTab === true || (isExternalLink && newTab !== false);
 
-  if (openInNewTab) {
+  if (openInNewTab || reloadDocument) {
     return (
       <a
         href={to}
         onClick={onClick}
-        target="_blank"
-        rel="noopener noreferrer"
+        target={openInNewTab ? "_blank" : undefined}
+        rel={openInNewTab ? "noopener noreferrer" : undefined}
         className="group transition-colors duration-200 hover:bg-accent-3 rounded-md"
       >
         <Flex

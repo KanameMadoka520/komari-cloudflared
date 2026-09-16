@@ -1,39 +1,54 @@
 import { useTranslation } from "react-i18next";
 import { UpDownStack } from "./UpDownStack";
-import { useNodeList } from "@/contexts/NodeListContext";
+import {
+  useNodeList,
+  type NodeBasicInfo,
+} from "@/contexts/NodeListContext";
 import { useLiveData } from "@/contexts/LiveDataContext";
 import { formatUptime } from "./Node";
 import { formatBytes } from "@/utils/unitHelper";
 import { Flex, Text, Card } from "@radix-ui/themes";
+import type { Record as LiveRecord } from "@/types/LiveData";
 
 type DetailsGridProps = {
   uuid: string;
   gap?: string;
   box?: boolean;
   align?: "start" | "center" | "end";
+  node?: NodeBasicInfo;
+  liveRecord?: LiveRecord;
 };
 
-export const DetailsGrid = ({ uuid, gap, box, align }: DetailsGridProps) => {
+export const DetailsGrid = ({
+  uuid,
+  gap,
+  box,
+  align,
+  node: nodeProp,
+  liveRecord,
+}: DetailsGridProps) => {
   const { t } = useTranslation();
 
-  const { nodeList } = useNodeList();
+  const nodeListContext = useNodeList(false);
   const { live_data } = useLiveData();
-  const node = nodeList?.find((n) => n.uuid === uuid);
+  const node =
+    nodeProp ?? nodeListContext?.nodeList?.find((n) => n.uuid === uuid);
+  const currentRecord = liveRecord ?? live_data?.data.data[uuid ?? ""];
 
   const Container: any = box ? Card : 'div';
 
   return (
     <Container
-      className={`DetailsGrid max-w-[900px]`}
+      className={`km-details-grid DetailsGrid max-w-[900px]`}
     >
       <div className={`flex flex-wrap gap-${gap ?? "4"} basis-full justify-center ${align === "center" ? "justify-between" : ""}`}>
         <UpDownStack
-          className="md:w-128 flex-[0_0_calc(50%-0.5rem)]"
+          className="km-details-item md:w-128 flex-[0_0_calc(50%-0.5rem)]"
           up="CPU"
           down={`${node?.cpu_name} (x${node?.cpu_cores})`}
         />
-        <label className={`flex flex-wrap gap-2 gap-x-8 flex-[0_0_calc(50%-0.5rem)] ${align === "center" ? "justify-end" : ""}`}>
-          <UpDownStack up={t("nodeCard.arch")} down={node?.arch ?? "Unknown"} />
+        <label className={`km-details-item flex flex-wrap gap-2 gap-x-8 flex-[0_0_calc(50%-0.5rem)] ${align === "center" ? "justify-end" : ""}`}>
+          <UpDownStack up={t("admin.nodeDetail.arch")} down={node?.arch ?? "Unknown"} />
 
           <UpDownStack
             up={t("nodeCard.virtualization")}
@@ -41,8 +56,8 @@ export const DetailsGrid = ({ uuid, gap, box, align }: DetailsGridProps) => {
             down={node?.virtualization ?? "Unknown"}
           />
         </label>
-        <UpDownStack up="GPU" down={node?.gpu_name ?? "Unknown"} className="flex-[0_0_calc(50%-0.5rem)]" />
-        <div className={`flex flex-col gap-0 flex-[0_0_calc(50%-0.5rem)] ${align === "center" ? "items-end text-right" : "items-start"}`}>
+        <UpDownStack up="GPU" down={node?.gpu_name ?? "Unknown"} className="km-details-item flex-[0_0_calc(50%-0.5rem)]" />
+        <div className={`km-details-item flex flex-col gap-0 flex-[0_0_calc(50%-0.5rem)] ${align === "center" ? "items-end text-right" : "items-start"}`}>
           <label className="text-base font-bold">{t("nodeCard.os")}</label>
           <label className="text-sm text-muted-foreground -mt-1">{node?.os ?? "Unknown"}</label>
           <label className="text-xs text-muted-foreground opacity-75">
@@ -51,56 +66,56 @@ export const DetailsGrid = ({ uuid, gap, box, align }: DetailsGridProps) => {
         </div>
 
         <UpDownStack
-          className="md:w-64 w-full flex-[0_0_calc(50%-0.5rem)]"
+          className="km-details-item md:w-64 w-full flex-[0_0_calc(50%-0.5rem)]"
           up={t("nodeCard.networkSpeed")}
           down={` ↑ ${formatBytes(
-            live_data?.data.data[uuid ?? ""]?.network.up || 0
+            currentRecord?.network.up || 0
           )}/s
           ↓
           ${formatBytes(
-            live_data?.data.data[uuid ?? ""]?.network.down || 0
+            currentRecord?.network.down || 0
           )}/s`}
         />
         <UpDownStack
           up={t("nodeCard.totalTraffic")}
           align={align === "center" ? "end" : "start"}
-          className="flex-[0_0_calc(50%-0.5rem)]"
-          down={`↑
+          className="km-details-item flex-[0_0_calc(50%-0.5rem)]"
+            down={`↑
           ${formatBytes(
-            live_data?.data.data[uuid ?? ""]?.network.totalUp || 0
-          )}
+              currentRecord?.network.totalUp || 0
+            )}
           ↓
           ${formatBytes(
-            live_data?.data.data[uuid ?? ""]?.network.totalDown || 0
-          )}`}
+              currentRecord?.network.totalDown || 0
+            )}`}
         />
         <UpDownStack
-          className="md:w-70 w-full flex-[0_0_calc(50%-0.5rem)]"
+          className="km-details-item md:w-70 w-full flex-[0_0_calc(50%-0.5rem)]"
           up={t("nodeCard.ram")}
           down={formatBytes(node?.mem_total || 0)}
         />
         <UpDownStack
           up={t("nodeCard.swap")}
-          className="flex-[0_0_calc(50%-0.5rem)]"
+          className="km-details-item flex-[0_0_calc(50%-0.5rem)]"
           align={align === "center" ? "end" : "start"}
           down={formatBytes(node?.swap_total || 0)}
         />
         <UpDownStack
-          className="md:w-64 w-full flex-[0_0_calc(50%-0.5rem)]"
+          className="km-details-item md:w-64 w-full flex-[0_0_calc(50%-0.5rem)]"
           up={t("nodeCard.disk")}
           down={formatBytes(node?.disk_total || 0)}
         />
         <div className="flex-[0_0_calc(50%-0.5rem)]" />
         <UpDownStack
           up={t("nodeCard.uptime")}
-          className="flex-[0_0_calc(50%-0.5rem)]"
+          className="km-details-item flex-[0_0_calc(50%-0.5rem)]"
           down={
-            live_data?.data.data[uuid ?? ""]?.uptime
-              ? formatUptime(live_data?.data.data[uuid ?? ""]?.uptime, t)
+            currentRecord?.uptime
+              ? formatUptime(currentRecord.uptime, t)
               : "-"
           }
         />
-        <label className={`flex flex-wrap gap-2 flex-[0_0_calc(50%-0.5rem)] ${align === "center" ? "justify-end" : ""}`}>
+        <label className={`km-details-item flex flex-wrap gap-2 flex-[0_0_calc(50%-0.5rem)] ${align === "center" ? "justify-end" : ""}`}>
           <Flex align={"center"} gap="2">
             <Text size="2" weight="bold" wrap="nowrap">
               {t("nodeCard.last_updated")}
@@ -108,7 +123,7 @@ export const DetailsGrid = ({ uuid, gap, box, align }: DetailsGridProps) => {
             <Text size="2">
               {node?.updated_at
                 ? new Date(
-                  live_data?.data.data[uuid ?? ""]?.updated_at ||
+                  currentRecord?.updated_at ||
                   node.updated_at
                 ).toLocaleString()
                 : "-"}

@@ -16,35 +16,13 @@ import {
 import React from "react";
 import { toast } from "sonner";
 import Loading from "@/components/loading";
-import { SettingCardMultiInputCollapse } from "@/components/admin/SettingCardMultiInput";
-import { formatBytes } from "@/utils/unitHelper";
+
 export default function GeneralSettings() {
   const { t } = useTranslation();
   const { settings, loading, error } = useSettings();
   const [geoip_testResult, setGeoipTestResult] = React.useState<string | null>(
     null
   );
-  const [expected_usage, setExpectedUsage] = React.useState<string | null>(
-    null
-  );
-  React.useEffect(() => {
-    const pingPreserveTime = parseInt(
-      settings.ping_record_preserve_time || "30",
-      10
-    );
-    const recordPreserveTime = parseInt(
-      settings.record_preserve_time || "30",
-      10
-    );
-    if (isNaN(pingPreserveTime) || isNaN(recordPreserveTime)) {
-      setExpectedUsage("0");
-      return;
-    } else {
-      setExpectedUsage(
-        calculateExpectedUsage(pingPreserveTime, recordPreserveTime)
-      );
-    }
-  }, [settings.ping_record_preserve_time, settings.record_preserve_time]);
   if (loading) {
     return <Loading text="creeper?" />;
   }
@@ -67,6 +45,7 @@ export default function GeneralSettings() {
         onChange={async (checked) => {
           await updateSettingsWithToast({ geo_ip_enabled: checked }, t);
         }}
+        className="km-page-admin-settings-general km-setting-card"
       />
       <SettingCardSelect
         title={t("settings.geoip.provider_title")}
@@ -84,25 +63,23 @@ export default function GeneralSettings() {
         }}
       />
       <SettingCardButton
-        title={t("settings.geoip.update_title", "更新 GeoIP 数据库")}
+        title={t("settings.geoip.update_title")}
         onClick={async () => {
           const result = await fetch("/api/admin/update/mmdb", {
             method: "POST",
           });
           const data = await result.json();
           if (data.status === "success") {
-            toast.success(
-              t("settings.geoip.update_success", "GeoIP 数据库更新成功")
-            );
+            toast.success(t("settings.geoip.update_success"));
           } else {
             toast.error(
-              data.message ||
-                t("settings.geoip.update_error", "更新 GeoIP 数据库失败")
+              data.message || t("settings.geoip.update_error")
             );
           }
         }}
+        className="km-setting-card"
       >
-        {t("common.update", "更新")}
+        {t("common.update")}
       </SettingCardButton>
       <SettingCardCollapse
         title={t("settings.geoip.test_title")}
@@ -122,11 +99,11 @@ export default function GeneralSettings() {
                 const result = await fetch(`/api/admin/test/geoip?ip=${ip}`);
                 const data = await result.json();
                 setGeoipTestResult(
-                  JSON.stringify(data.data, null, 2) || "无结果"
+                  JSON.stringify(data.data, null, 2) || t("common.no_results")
                 );
               }}
             >
-              {t("settings.geoip.test_button", "测试")}
+              {t("settings.geoip.test_button")}
             </Button>
           </div>{" "}
           <Flex className="w-full">
@@ -141,126 +118,12 @@ export default function GeneralSettings() {
           </Flex>
         </Flex>
       </SettingCardCollapse>
-      <label className="text-xl font-bold">{t("settings.record.title")}</label>
-      <SettingCardSwitch
-        title={t("settings.record.enabled")}
-        description={t("settings.record.enabled_description")}
-        defaultChecked={settings.record_enabled}
-        onChange={async (checked) => {
-          await updateSettingsWithToast({ record_enabled: checked }, t);
-        }}
-      />
-      <SettingCardMultiInputCollapse
-        defaultOpen
-        title={t("settings.record.record_preserve_time")}
-        description={t("settings.record.record_preserve_time_description")}
-        items={[
-          {
-            tag: "record_preserve_time",
-            label: t("settings.record.record_preserve_time_label"),
-            type: "short",
-            placeholder: "30",
-            defaultValue: settings.record_preserve_time || "30",
-            number: true,
-          },
-          {
-            tag: "ping_record_preserve_time",
-            label: t("settings.record.ping_record_preserve_time"),
-            type: "short",
-            placeholder: "30",
-            defaultValue: settings.ping_record_preserve_time || "30",
-            number: true,
-          },
-        ]}
-        onSave={async (values) => {
-          const preserveTime = parseInt(values.record_preserve_time, 10);
-          const pingPreserveTime = parseInt(
-            values.ping_record_preserve_time,
-            10
-          );
-          if (isNaN(preserveTime) || isNaN(pingPreserveTime)) {
-            toast.error(t("settings.record.invalid_preserve_time"));
-            return;
-          }
-          await updateSettingsWithToast(
-            {
-              record_preserve_time: preserveTime,
-              ping_record_preserve_time: pingPreserveTime,
-            },
-            t
-          );
-        }}
-        onChange={(values) => {
-          const preserveTime = parseInt(values.record_preserve_time, 10);
-          const pingPreserveTime = parseInt(
-            values.ping_record_preserve_time,
-            10
-          );
-          if (isNaN(preserveTime) || isNaN(pingPreserveTime)) {
-            setExpectedUsage("0");
-            return;
-          }
-          setExpectedUsage(
-            calculateExpectedUsage(pingPreserveTime, preserveTime)
-          );
-        }}
-      >
-        <label className="text-sm text-muted-foreground">
-          {t("settings.record.expected_usage", {
-            space: expected_usage,
-          })}
-        </label>
-      </SettingCardMultiInputCollapse>
-      <SettingCardLabel>{t("settings.nezha.title")}</SettingCardLabel>
-      <label className="text-sm text-muted-foreground -mt-4">
-        {t("settings.nezha.description")}
-      </label>
-      <SettingCardSwitch
-        title={t("settings.nezha.enabled")}
-        description={t("settings.nezha.enabled_description")}
-        defaultChecked={settings.nezha_compat_enabled}
-        onChange={async (checked) => {
-          await updateSettingsWithToast({ nezha_compat_enabled: checked }, t);
-        }}
-      />
-      <SettingCardShortTextInput
-        title={t("settings.nezha.listen")}
-        description={t("settings.nezha.listen_description")}
-        defaultValue={settings.nezha_compat_listen || ""}
-        placeholder="0.0.0.0:5555"
-        OnSave={async (value) => {
-          await updateSettingsWithToast({ nezha_compat_listen: value }, t);
-        }}
-      />
     </>
   );
 }
 
-function calculateExpectedUsage(
-  pingPreserveTime: number,
-  recordPreserveTime: number
-): string {
-  let totalPingBytes = 0;
-  let totalRecordBytes = 0;
-
-  // 1 ping/minute * 60 bytes/ping * 60 minutes/hour = 3600 bytes/hour
-  totalPingBytes = pingPreserveTime * 3600;
-
-  if (recordPreserveTime <= 4) {
-    // First 4 hours: 1 record/minute * 1024 bytes/record * 60 minutes/hour
-    totalRecordBytes = recordPreserveTime * 1 * 1024 * 60;
-  } else {
-    // Bytes for the first 4 hours
-    totalRecordBytes = 4 * 1 * 1024 * 60;
-    // Bytes for the remaining time (recordPreserveTime - 4)
-    // 4 records/hour * 1024 bytes/record
-    totalRecordBytes += (recordPreserveTime - 4) * 4 * 1024;
-  }
-
-  return formatBytes(totalPingBytes + totalRecordBytes);
-}
-
 const ApiCard = ({ settings }: { settings: SettingsResponse }) => {
+
   //const { settings } = useSettings();
   const { t } = useTranslation();
   const [apiValues, setApiValues] = React.useState<string>(

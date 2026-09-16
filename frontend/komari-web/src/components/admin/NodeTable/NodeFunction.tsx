@@ -6,6 +6,7 @@ import { Terminal, Trash2, Copy, Download, DollarSign } from "lucide-react";
 import { t } from "i18next";
 import type { Row } from "@tanstack/react-table";
 import { EditDialog } from "./NodeEditDialog";
+import { quotePowerShellArg, quoteShellArgs } from "@/utils/shellQuote";
 import {
   Button,
   Checkbox,
@@ -51,8 +52,8 @@ export function ActionsCell({ row }: { row: Row<z.infer<typeof schema>> }) {
 
   const generateCommand = () => {
     const host = window.location.origin;
-    const token = row.original.token;
-    let args = ["-e", host, "-t", token];
+    const token = row.original.token ?? "";
+    const args: string[] = ["-e", host, "-t", token];
     // 根据安装选项生成参数
     if (installOptions.disableWebSsh) {
       args.push("--disable-web-ssh");
@@ -63,20 +64,23 @@ export function ActionsCell({ row }: { row: Row<z.infer<typeof schema>> }) {
     if (installOptions.ignoreUnsafeCert) {
       args.push("--ignore-unsafe-cert");
     }
-    if (installOptions.ghproxy) {
-      if (!installOptions.ghproxy.startsWith("http")) {
-        installOptions.ghproxy = `http://${installOptions.ghproxy}`;
-      }
+    const ghproxy = installOptions.ghproxy.trim();
+    if (ghproxy) {
+      const finalGhproxy = ghproxy.startsWith("http")
+        ? ghproxy
+        : `http://${ghproxy}`;
       args.push(`--install-ghproxy`);
-      args.push(installOptions.ghproxy);
+      args.push(finalGhproxy);
     }
-    if (installOptions.dir) {
+    const installDir = installOptions.dir.trim();
+    if (installDir) {
       args.push(`--install-dir`);
-      args.push(installOptions.dir);
+      args.push(installDir);
     }
-    if (installOptions.serviceName) {
+    const serviceName = installOptions.serviceName.trim();
+    if (serviceName) {
       args.push(`--install-service-name`);
-      args.push(installOptions.serviceName);
+      args.push(serviceName);
     }
 
     let finalCommand = "";
@@ -84,7 +88,7 @@ export function ActionsCell({ row }: { row: Row<z.infer<typeof schema>> }) {
       case "linux":
         finalCommand =
           `wget -qO- https://raw.githubusercontent.com/komari-monitor/komari-agent/refs/heads/main/install.sh | sudo bash -s -- ` +
-          args.join(" ");
+          quoteShellArgs(args);
         break;
       case "windows":
         finalCommand =
@@ -93,14 +97,14 @@ export function ActionsCell({ row }: { row: Row<z.infer<typeof schema>> }) {
           ` -UseBasicParsing -OutFile 'install.ps1'; &` +
           ` '.\\install.ps1'`;
         args.forEach((arg) => {
-          finalCommand += ` '${arg}'`;
+          finalCommand += ` ${quotePowerShellArg(arg)}`;
         });
         finalCommand += `"`;
         break;
       case "macos":
         finalCommand =
-            `zsh <(curl -sL https://raw.githubusercontent.com/komari-monitor/komari-agent/refs/heads/main/install.sh) ` +
-            args.join(" ");
+          `zsh <(curl -sL https://raw.githubusercontent.com/komari-monitor/komari-agent/refs/heads/main/install.sh) ` +
+          quoteShellArgs(args);
         break;
     }
     return finalCommand;
@@ -116,10 +120,14 @@ export function ActionsCell({ row }: { row: Row<z.infer<typeof schema>> }) {
   };
 
   return (
-    <div className="flex gap-3 justify-center">
+    <div className="km-node-function flex gap-3 justify-center">
       <Dialog.Root>
         <Dialog.Trigger>
-          <IconButton variant="ghost">
+          <IconButton
+            variant="ghost"
+            title={t("admin.nodeTable.installCommand", "Install command")}
+            aria-label={t("admin.nodeTable.installCommand", "Install command")}
+          >
             <Download className="p-1" />
           </IconButton>
         </Dialog.Trigger>
@@ -278,14 +286,18 @@ export function ActionsCell({ row }: { row: Row<z.infer<typeof schema>> }) {
                 onClick={() => copyToClipboard(generateCommand())}
               >
                 <Copy size={16} />
-                {t("copy")}
+                {t("common.copy")}
               </Button>
             </Flex>
           </div>
         </Dialog.Content>
       </Dialog.Root>
       <a href={`/terminal?uuid=${row.original.uuid}`} target="_blank">
-        <IconButton variant="ghost">
+        <IconButton
+          variant="ghost"
+          title={t("terminal.title", "Terminal")}
+          aria-label={t("terminal.title", "Terminal")}
+        >
           <Terminal className="p-1" />
         </IconButton>
       </a>
@@ -294,7 +306,11 @@ export function ActionsCell({ row }: { row: Row<z.infer<typeof schema>> }) {
       {/** Edit Money */}
       <Dialog.Root> 
         <Dialog.Trigger>
-          <IconButton variant="ghost">
+          <IconButton
+            variant="ghost"
+            title={t("admin.nodeTable.editNodePrice", "Edit Price")}
+            aria-label={t("admin.nodeTable.editNodePrice", "Edit Price")}
+          >
            <DollarSign className="p-1" />
           </IconButton>
         </Dialog.Trigger>
@@ -308,18 +324,24 @@ export function ActionsCell({ row }: { row: Row<z.infer<typeof schema>> }) {
       {/** Delete Button */}
       <Dialog.Root>
         <Dialog.Trigger>
-          <IconButton variant="ghost" color="red" className="text-destructive">
+          <IconButton
+            variant="ghost"
+            color="red"
+            className="text-destructive"
+            title={t("common.delete", "Delete")}
+            aria-label={t("common.delete", "Delete")}
+          >
             <Trash2 className="p-1" />
           </IconButton>
         </Dialog.Trigger>
         <Dialog.Content>
-          <Dialog.Title>{t("admin.nodeTable.confirmDelete")}</Dialog.Title>
+          <Dialog.Title>{t("common.confirm_delete")}</Dialog.Title>
           <Dialog.Description>
             {t("admin.nodeTable.cannotUndo")}
           </Dialog.Description>
           <Flex gap="2" justify={"end"}>
             <Dialog.Close>
-              <Button variant="soft">{t("admin.nodeTable.cancel")}</Button>
+              <Button variant="soft">{t("common.cancel")}</Button>
             </Dialog.Close>
             <Dialog.Trigger>
               <Button
@@ -334,7 +356,7 @@ export function ActionsCell({ row }: { row: Row<z.infer<typeof schema>> }) {
               >
                 {removing
                   ? t("admin.nodeTable.deleting")
-                  : t("admin.nodeTable.confirm")}
+                  : t("common.confirm")}
               </Button>
             </Dialog.Trigger>
           </Flex>

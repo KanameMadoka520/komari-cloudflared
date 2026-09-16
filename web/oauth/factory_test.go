@@ -1,33 +1,24 @@
 package oauth
 
 import (
-	"testing"
-
 	"github.com/komari-monitor/komari/web/oauth/factory"
+	"testing"
 )
 
-// Test function
-func TestRegisterAndGetProviderConfigs(t *testing.T) {
+func TestRetainedCloudflareAccessProviderIsAvailable(t *testing.T) {
 	All()
-	configs := factory.GetProviderConfigs()
-	if len(configs) == 0 {
-		t.Error("Expected non-empty provider configs, got empty")
+	constructor, ok := factory.GetConstructor("CloudflareAccess")
+	if !ok {
+		t.Fatal("Cloudflare Access was removed from the provider registry")
 	}
-	providers := factory.GetAllOidcProviders()
-	if len(providers) == 0 {
-		t.Error("Expected non-empty OIDC providers, got empty")
+	provider := constructor()
+	if provider.GetConfiguration() == nil {
+		t.Fatal("missing provider configuration")
 	}
-	names := factory.GetAllOidcProviderNames()
-	if len(names) == 0 {
-		t.Error("Expected non-empty OIDC provider names, got empty")
+	if err := provider.Init(); err == nil {
+		t.Fatal("empty Cloudflare Access settings must be rejected")
 	}
-
-	provider := providers["github"]
-	if provider == nil {
-		provider = providers[names[0]]
-	}
-	cfg := provider.GetConfiguration()
-	if cfg == nil {
-		t.Errorf("Expected non-nil configuration for %q provider, got nil", provider.GetName())
+	if len(factory.GetProviderConfigs()["CloudflareAccess"]) != 2 {
+		t.Fatal("missing team domain or policy AUD fields")
 	}
 }

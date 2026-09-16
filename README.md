@@ -7,8 +7,26 @@
 当前对外版本标识为：
 
 ```text
-Komari-cloudflared分支beta
+1.5.0-fix1-cloudflared.1
 ```
+
+
+## 本地同步版本与验证
+
+服务端与前端均同步至官方 **1.5.0-fix1**，精确来源记录在 [UPSTREAM_VERSIONS.json](./UPSTREAM_VERSIONS.json)。前端源码仍内嵌在同一仓库。保留 Cloudflare Tunnel、Caddy `/media/` 资源、流量定时报告和 v1 Agent 接入兼容；监控数据统一使用新 metricstore，完整保留上游插件、文件管理、终端重连、主题市场及权限修复。
+
+本仓库只用 GitHub 保存代码，**不包含 GitHub Actions 工作流**。所有验证在本机执行：
+
+```bash
+# 需要 Go 1.27、C 编译器、Node.js 22、npm、GNU tar、zstd
+./scripts/build-local.sh
+./scripts/check-local.sh
+
+# 镜像会重新构建本仓库的定制前端，不下载官方预编译页面
+BUILD_HASH=$(git rev-parse --short=12 HEAD) docker compose build komari
+```
+
+部署和旧数据库迁移前请阅读 [1.5 升级说明](./docs/UPGRADE-1.5.md)。文件管理等新 Agent 功能需要相应的新 Agent；旧 v1 Agent 兼容层保留监控、Ping、执行命令和终端，无法提供旧 Agent 本身不具备的新功能。
 
 ## 分支定位
 
@@ -36,7 +54,7 @@ Komari-cloudflared分支beta
 
 - 后端源码：仓库根目录
 - 前端源码：`frontend/komari-web`
-- 内置主题静态资源：`public/defaultTheme`
+- 内置主题静态资源：`web/public/defaultTheme`
 - 默认部署编排：`docker-compose.yml`
 - 默认部署反向代理：`Caddyfile`
 - 默认媒体目录：`reference-media`

@@ -3,12 +3,12 @@ package oauth
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	logger "github.com/komari-monitor/komari/utils/log"
 	"sync"
 
 	"github.com/komari-monitor/komari/database"
 	"github.com/komari-monitor/komari/database/models"
-	"github.com/komari-monitor/komari/pkg/config"
+	"github.com/komari-monitor/komari/internal/config"
 	"github.com/komari-monitor/komari/web/oauth/factory"
 )
 
@@ -24,12 +24,24 @@ func CurrentProvider() factory.IOidcProvider {
 	return currentProvider
 }
 
+// Shutdown 销毁当前 OAuth provider，释放其持有的资源。供关闭流程调用。
+func Shutdown() error {
+	mu.Lock()
+	defer mu.Unlock()
+	if currentProvider == nil {
+		return nil
+	}
+	err := currentProvider.Destroy()
+	currentProvider = nil
+	return err
+}
+
 func LoadProvider(name string, configJson string) error {
 	mu.Lock()
 	defer mu.Unlock()
 	if currentProvider != nil {
 		if err := currentProvider.Destroy(); err != nil {
-			log.Printf("Failed to destroy provider %s: %v", currentProvider.GetName(), err)
+			logger.Errorf("oauth", "Failed to destroy provider %s: %v", currentProvider.GetName(), err)
 		}
 	}
 	constructor, exists := factory.GetConstructor(name)
@@ -58,14 +70,14 @@ func Initialize() error {
 			config := provider.GetConfiguration()
 			configBytes, err := json.Marshal(config)
 			if err != nil {
-				log.Printf("Failed to marshal config for provider %s: %v", provider.GetName(), err)
+				logger.Errorf("oauth", "Failed to marshal config for provider %s: %v", provider.GetName(), err)
 				return
 			}
 			if err := database.SaveOidcConfig(&models.OidcProvider{
 				Name:     provider.GetName(),
 				Addition: string(configBytes),
 			}); err != nil {
-				log.Printf("Failed to save default config for provider %s: %v", provider.GetName(), err)
+				logger.Errorf("oauth", "Failed to save default config for provider %s: %v", provider.GetName(), err)
 				return
 			}
 		}
@@ -83,7 +95,7 @@ func Initialize() error {
 	}
 	err = LoadProvider(provider.Name, provider.Addition)
 	if err != nil {
-		log.Printf("Failed to load OIDC provider %s: %v", provider.Name, err)
+		logger.Errorf("oauth", "Failed to load OIDC provider %s: %v", provider.Name, err)
 		return err
 	}
 	return nil

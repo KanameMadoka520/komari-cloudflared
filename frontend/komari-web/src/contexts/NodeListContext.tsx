@@ -62,9 +62,22 @@ interface NodeListContextType {
   refresh: () => void;
 }
 
-const NodeListContext = React.createContext<NodeListContextType | undefined>(
-  undefined
-);
+const NODE_LIST_CONTEXT_KEY = "__komariNodeListContext" as const;
+
+type NodeListContextGlobal = typeof globalThis & {
+  [NODE_LIST_CONTEXT_KEY]?: React.Context<NodeListContextType | undefined>;
+};
+
+const globalNodeListContext = globalThis as NodeListContextGlobal;
+const NodeListContext =
+  globalNodeListContext[NODE_LIST_CONTEXT_KEY] ??
+  (globalNodeListContext[NODE_LIST_CONTEXT_KEY] =
+    React.createContext<NodeListContextType | undefined>(undefined));
+
+const sameNodeBasicInfo = (left: NodeBasicInfo, right: NodeBasicInfo) =>
+  (Object.keys(right) as Array<keyof NodeBasicInfo>).every(
+    (key) => left[key] === right[key],
+  );
 
 export const NodeListProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -73,13 +86,24 @@ export const NodeListProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isLoading, setIsLoading] = React.useState<boolean>(true);
   const [error, setError] = React.useState<string | null>(null);
   const { call } = useRPC2Call();
+  const refreshSeqRef = React.useRef(0);
+  const mountedRef = React.useRef(true);
 
-  const refresh = () => {
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const refresh = React.useCallback(() => {
+    const refreshSeq = ++refreshSeqRef.current;
     // setIsLoading(true);
     setError(null);
     // 通过 RPC2 获取节点基本信息
     call<{ uuid?: string }, Record<string, any>>("common:getNodes")
       .then((result) => {
+        if (!mountedRef.current || refreshSeq !== refreshSeqRef.current) return;
         if (!result || typeof result !== "object") {
           setNodeList([]);
           return;
@@ -115,31 +139,57 @@ export const NodeListProvider: React.FC<{ children: React.ReactNode }> = ({
           ipv4: n.ipv4,
           ipv6: n.ipv6,
         }));
-        setNodeList(list);
+        setNodeList((previous) => {
+          if (!previous) return list;
+          const previousByUuid = new Map(
+            previous.map((node) => [node.uuid, node]),
+          );
+          let changed = previous.length !== list.length;
+          const shared = list.map((node, index) => {
+            const previousNode = previousByUuid.get(node.uuid);
+            if (previousNode && sameNodeBasicInfo(previousNode, node)) {
+              if (previous[index] !== previousNode) changed = true;
+              return previousNode;
+            }
+            changed = true;
+            return node;
+          });
+          return changed ? shared : previous;
+        });
       })
       .catch((err: any) => {
+        if (!mountedRef.current || refreshSeq !== refreshSeqRef.current) return;
         setError(err?.message || "An error occurred while fetching data");
         setNodeList([]);
       })
       .finally(() => {
+        if (!mountedRef.current || refreshSeq !== refreshSeqRef.current) return;
         setIsLoading(false);
       });
-  };
+  }, [call]);
 
   React.useEffect(() => {
     refresh();
-  }, []);
+  }, [refresh]);
+
+  const contextValue = React.useMemo(
+    () => ({ nodeList, isLoading, error, refresh }),
+    [nodeList, isLoading, error, refresh],
+  );
+
   return (
-    <NodeListContext.Provider value={{ nodeList, isLoading, error, refresh }}>
+    <NodeListContext.Provider value={contextValue}>
       {children}
     </NodeListContext.Provider>
   );
 };
 
-export const useNodeList = () => {
+export function useNodeList(): NodeListContextType;
+export function useNodeList(required: false): NodeListContextType | undefined;
+export function useNodeList(required = true) {
   const context = React.useContext(NodeListContext);
-  if (!context) {
+  if (!context && required) {
     throw new Error("useNodeList must be used within a NodeListProvider");
   }
   return context;
-};
+}

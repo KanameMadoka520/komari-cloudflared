@@ -1,53 +1,61 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, Switch } from "@radix-ui/themes";
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import { useTranslation } from "react-i18next";
 import Loading from "@/components/loading";
+import MetricBoundaryAxisTick from "@/components/MetricBoundaryAxisTick";
+import PingMetricStatContent from "@/components/PingMetricStatContent";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  ChartLegend,
+  type ChartConfig,
 } from "@/components/ui/chart";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
-import { useTranslation } from "react-i18next";
-import { cutPeakValues, interpolateNullsLinear } from "@/utils/RecordHelper";
-import Tips from "./ui/tips";
+import Tips from "@/components/ui/tips";
 import { useRPC2Call } from "@/contexts/RPC2Context";
+import { cn } from "@/lib/utils";
+import type {
+  MetricSeries,
+  MetricTags,
+  PingMetricStat,
+  PingMetricStatsResponse,
+  PublicPingTask,
+  QueryMetricsResponse,
+} from "@/types/metrics";
+import {
+  PING_LATENCY_METRIC,
+  applyMetricEwma,
+  comparePingTaskOrder,
+  formatRemainingTags,
+  metricChartBoundaryTicks,
+  metricSeriesColor,
+  metricSeriesDataKey,
+  metricSeriesKey,
+  metricTags,
+  normalizeMetricSeriesList,
+  pingMetricStatKey,
+  pingTaskId,
+  pingTaskName,
+  trimMetricChartBoundaryRows,
+  type MetricChartRow,
+} from "@/utils/metricSeries";
 
-interface PingRecord {
-  client: string;
-  task_id: number;
-  time: string;
-  value: number;
-}
-interface TaskInfo {
-  id: number;
+type RenderSeries = {
+  dataKey: string;
+  stableKey: string;
+  taskId?: string;
   name: string;
-  interval: number;
-  loss: number;
-  p99?: number;
-  p50?: number;
-  p99_p50_ratio?: number;
-}
-// 移除旧 REST 类型，改用 RPC2 返回结构
+  color: string;
+  pointCount: number;
+  tags?: MetricTags;
+};
 
-//const MAX_POINTS = 1000;
-const colors = [
-  "#F38181",
-  "#347433",
-  "#898AC4",
-  "#03A6A1",
-  "#7AD6F0",
-  "#B388FF",
-  "#FF8A65",
-  "#FFD600",
-];
-
-interface MiniPingChartProps {
+type MiniPingChartProps = {
   uuid: string;
   width?: string | number;
   height?: string | number;
-  hours?: number; // Add hours as an optional prop
-}
+  hours?: number;
+};
 
 const MiniPingChart = ({
   uuid,
@@ -55,244 +63,317 @@ const MiniPingChart = ({
   height = 300,
   hours = 12,
 }: MiniPingChartProps) => {
-  const [remoteData, setRemoteData] = useState<PingRecord[] | null>(null);
-  const [tasks, setTasks] = useState<TaskInfo[]>([]);
+  const { t } = useTranslation();
+  const { call } = useRPC2Call();
+  const [metricSeries, setMetricSeries] = useState<MetricSeries[]>([]);
+  const [tasks, setTasks] = useState<PublicPingTask[]>([]);
+  const [stats, setStats] = useState<PingMetricStat[]>([]);
+  const [hiddenLines, setHiddenLines] = useState<Record<string, boolean>>({});
+  const [ewmaEnabled, setEwmaEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hiddenLines, setHiddenLines] = useState<Record<string, boolean>>({});
-  const [t] = useTranslation();
-  const [cutPeak, setCutPeak] = useState(false);
-  const { call } = useRPC2Call();
-  useEffect(() => {
-    if (!uuid) return;
 
+  useEffect(() => {
+    if (!uuid) {
+      setMetricSeries([]);
+      setTasks([]);
+      setStats([]);
+      return;
+    }
+
+    let active = true;
     setLoading(true);
     setError(null);
-    (async () => {
-      try {
-        type RpcResp = { count: number; records: PingRecord[]; tasks?: TaskInfo[] };
-        const result = await call<any, RpcResp>("common:getRecords", { uuid, type: "ping", hours });
-        const records = result?.records || [];
-        records.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
-        setRemoteData(records);
-        setTasks(result?.tasks || []);
-        setLoading(false);
-      } catch (err: any) {
-        setError(err?.message || "Error");
-        setLoading(false);
-      }
-    })();
-  }, [uuid, hours]);
+    setHiddenLines({});
 
-  const chartData = useMemo(() => {
-    // 思路：仅保留真实采样时间点（各任务原始时间点的并集），
-    // 不再用最小间隔对整段时间做补点，否则长间隔任务会被大量 null 分割成若干段。
-    const data = remoteData || [];
-    if (!data.length) return [];
-
-    // 动态匹配容差：取各任务最小 interval * 0.4（秒）转换为 ms，范围 [800ms, 1500ms]
-    const validIntervals = tasks
-      .map((t) => t.interval)
-      .filter((v): v is number => typeof v === "number" && v > 0);
-    const minTaskInterval = validIntervals.length
-      ? Math.min(...validIntervals)
-      : 60;
-    const toleranceMs = Math.min(
-      1500,
-      Math.max(800, (minTaskInterval * 1000 * 0.4) | 0)
+    const taskRequest = call<unknown, PublicPingTask[]>(
+      "public:getPublicPingTasks",
+    ).catch(() => []);
+    const metricRequest = call<unknown, QueryMetricsResponse>(
+      "public:queryMetrics",
+      {
+        metric_keys: [PING_LATENCY_METRIC],
+        entity_id: uuid,
+        hours,
+        max_points: 240,
+        aggregation: "avg",
+        fill_empty: true,
+      },
+      { timeout: 30000 },
     );
+    const statsRequest = call<unknown, PingMetricStatsResponse>(
+      "public:getPingMetricStats",
+      { entity_id: uuid, hours, max_points: 240 },
+      { timeout: 30000 },
+    ).catch(() => null);
 
-    const grouped: Record<string, any> = {}; // key: anchor timestamp(ms)
-    const anchors: number[] = [];
-
-    for (const rec of data) {
-      const ts = new Date(rec.time).getTime();
-      let anchor: number | null = null;
-      // 线性扫描量通常较小（点数有限），后续如需优化可改为二分。
-      for (const a of anchors) {
-        if (Math.abs(a - ts) <= toleranceMs) {
-          anchor = a;
-          break;
-        }
-      }
-      const use = anchor ?? ts;
-      if (!grouped[use]) {
-        grouped[use] = { time: new Date(use).toISOString() };
-        if (anchor === null) anchors.push(use);
-      }
-      grouped[use][rec.task_id] = rec.value < 0 ? null : rec.value; // 负值隐藏
-    }
-
-    let rows = Object.values(grouped).sort(
-      (a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime()
-    );
-
-    if (cutPeak && tasks.length > 0) {
-      const taskKeys = tasks.map((t) => String(t.id));
-      rows = cutPeakValues(rows, taskKeys);
-    }
-
-    // 真实感插值（数据驱动）：
-    // 每条线以“中位采样间隔 * 倍数(默认6)”作为最大插值跨度，并钳制在 [2min, 30min]。
-    if (tasks.length > 0 && rows.length > 0) {
-      const keys = tasks.map((t) => String(t.id));
-      rows = interpolateNullsLinear(rows as any[], keys, { maxGapMultiplier: 6, minCapMs: 2 * 60_000, maxCapMs: 30 * 60_000 }) as any[];
-    }
-
-    return rows;
-  }, [remoteData, cutPeak, tasks]);
-
-  const timeFormatter = (value: any, index: number) => {
-    if (!chartData.length) return "";
-    if (index === 0 || index === chartData.length - 1) {
-      return new Date(value).toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
+    Promise.all([taskRequest, metricRequest, statsRequest])
+      .then(([taskList, result, statsResult]) => {
+        if (!active) return;
+        setTasks(Array.isArray(taskList) ? taskList : []);
+        setMetricSeries(normalizeMetricSeriesList(result?.series));
+        setStats(Array.isArray(statsResult?.stats) ? statsResult.stats : []);
+        setLoading(false);
+      })
+      .catch((requestError) => {
+        if (!active) return;
+        setError(
+          requestError instanceof Error ? requestError.message : "Error",
+        );
+        setLoading(false);
       });
-    }
-    return "";
-  };
 
-  const lableFormatter = (value: any) => {
-    const date = new Date(value);
-    return date.toLocaleString([], {
+    return () => {
+      active = false;
+    };
+  }, [call, hours, uuid]);
+
+  const taskMap = useMemo(
+    () => new Map(tasks.map((task) => [String(task.id), task])),
+    [tasks],
+  );
+
+  const statsMap = useMemo(() => {
+    const map = new Map<string, PingMetricStat>();
+    for (const stat of stats) {
+      map.set(pingMetricStatKey(stat.entity_id, stat.task_id), stat);
+    }
+    return map;
+  }, [stats]);
+
+  const built = useMemo(() => {
+    const rows = new Map<string, MetricChartRow>();
+    const renderSeries: RenderSeries[] = [];
+
+    metricSeries.forEach((series, index) => {
+      const tags = metricTags(series);
+      const taskId = pingTaskId(tags);
+      const taskLabel = taskId
+        ? pingTaskName(taskId, taskMap, (id) => `${t("ping.task")} ${id}`)
+        : t("ping.task");
+      const remainingTags = formatRemainingTags(tags, ["task_id"]);
+      const stableKey = metricSeriesKey(series.metric_key, tags);
+      const dataKey = metricSeriesDataKey(series.metric_key, tags);
+      renderSeries.push({
+        dataKey,
+        stableKey,
+        taskId,
+        name: remainingTags ? `${taskLabel} ${remainingTags}` : taskLabel,
+        color: metricSeriesColor(index),
+        pointCount: (series.points ?? []).reduce(
+          (count, point) => count + (typeof point.value === "number" ? 1 : 0),
+          0,
+        ),
+        tags,
+      });
+
+      for (const point of series.points ?? []) {
+        const time = new Date(point.time).toISOString();
+        const row = rows.get(time) ?? { time };
+        row[dataKey] =
+          typeof point.value === "number" && point.value >= 0
+            ? point.value
+            : null;
+        rows.set(time, row);
+      }
+    });
+
+    const orderedSeries = renderSeries
+      .sort((left, right) =>
+        comparePingTaskOrder(left.tags, right.tags, taskMap),
+      )
+      .map((series, index) => ({
+        ...series,
+        color: metricSeriesColor(index),
+      }));
+
+    return {
+      rows: Array.from(rows.values()).sort(
+        (left, right) =>
+          new Date(String(left.time)).getTime() -
+          new Date(String(right.time)).getTime(),
+      ),
+      series: orderedSeries,
+    };
+  }, [metricSeries, t, taskMap]);
+
+  const chartData = useMemo(
+    () =>
+      trimMetricChartBoundaryRows(
+        applyMetricEwma(built.rows, built.series, ewmaEnabled),
+        built.series.map((item) => item.dataKey),
+      ),
+    [built.rows, built.series, ewmaEnabled],
+  );
+
+  const chartConfig = useMemo(() => {
+    const config: ChartConfig = {};
+    for (const item of built.series) {
+      config[item.dataKey] = { label: item.name, color: item.color };
+    }
+    return config;
+  }, [built.series]);
+  const chartTicks = useMemo(
+    () => metricChartBoundaryTicks(chartData),
+    [chartData],
+  );
+
+  const labelFormatter = (value: string | number) =>
+    new Date(value).toLocaleString([], {
       month: "2-digit",
       day: "2-digit",
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
     });
+
+  const toggleLine = (dataKey: string) => {
+    setHiddenLines((current) => ({ ...current, [dataKey]: !current[dataKey] }));
   };
 
-  const chartConfig = useMemo(() => {
-    const config: Record<string, any> = {};
-    tasks.forEach((task, idx) => {
-      config[task.id] = {
-        label: `${task.name}${typeof task.p99_p50_ratio === 'number' ? ` (${t('chart.volatility')}: ${task.p99_p50_ratio.toFixed(2)})` : ''}`,
-        color: colors[idx % colors.length],
-      };
-    });
-    return config;
-  }, [tasks]);
-
-  const handleLegendClick = useCallback((e: any) => {
-    const key = e.dataKey;
-    setHiddenLines((prev) => ({ ...prev, [key]: !prev[key] }));
-  }, []);
-
   return (
-    <Card style={{ width, height }} className="flex flex-col">
+    <Card
+      style={{ width, height }}
+      className="km-mini-ping-chart flex min-h-0 flex-col gap-2 overflow-hidden"
+    >
       {loading && (
-        <div
-          style={{
-            textAlign: "center",
-            width: "100%",
-            flexGrow: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
+        <div className="flex min-h-0 flex-1 items-center justify-center">
           <Loading />
         </div>
       )}
-      {error && (
-        <div
-          style={{
-            color: "red",
-            textAlign: "center",
-            width: "100%",
-            flexGrow: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
+      {!loading && error && (
+        <div className="flex min-h-0 flex-1 items-center justify-center text-red-500">
           {error}
         </div>
       )}
-      {!loading && !error && chartData.length === 0 ? (
-        <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+      {!loading && !error && chartData.length === 0 && (
+        <div className="flex min-h-0 flex-1 items-center justify-center text-muted-foreground">
           {t("common.none")}
         </div>
-      ) : (
-        !loading &&
-        !error && (
-          <ChartContainer config={chartConfig} className="w-full h-full">
+      )}
+      {!loading && !error && chartData.length > 0 && (
+        <>
+          <div className="flex max-h-16 shrink-0 flex-wrap items-center gap-1 overflow-y-auto">
+            {built.series.map((item) => {
+              const hidden = hiddenLines[item.dataKey] === true;
+              const stat = item.taskId
+                ? statsMap.get(pingMetricStatKey(uuid, item.taskId))
+                : undefined;
+              return (
+                <div
+                  key={item.stableKey}
+                  className={cn(
+                    "inline-flex max-w-full items-center overflow-hidden rounded-md text-xs",
+                    hidden
+                      ? "bg-accent-2 text-muted-foreground"
+                      : "bg-accent-3 text-accent-12",
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleLine(item.dataKey)}
+                    className="inline-flex min-w-0 items-center gap-1 px-2 py-1"
+                  >
+                    <span
+                      className="size-2 shrink-0 rounded-[2px]"
+                      style={{
+                        backgroundColor: hidden ? "var(--gray-8)" : item.color,
+                      }}
+                    />
+                    <span className={cn("truncate", hidden && "line-through")}>
+                      {item.name}
+                    </span>
+                  </button>
+                  {stat && (
+                    <Tips
+                      mode="auto"
+                      side="top"
+                      className="shrink-0"
+                      ariaLabel={`${item.name} ${t("common.details")}`}
+                    >
+                      <PingMetricStatContent stat={stat} t={t} />
+                    </Tips>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <ChartContainer
+            config={chartConfig}
+            className="km-mini-ping-chart-canvas min-h-0 h-10/12 w-full flex-1"
+          >
             <LineChart
               data={chartData}
               accessibilityLayer
-              margin={{ top: 10, right: 16, bottom: 10, left: 16 }}
+              margin={{ top: 16, right: 8, bottom: 4, left: 8 }}
             >
               <CartesianGrid vertical={false} />
               <XAxis
                 dataKey="time"
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={timeFormatter}
-                interval="preserveStartEnd" // Preserve start and end ticks
-                minTickGap={30} // Minimum gap between ticks to prevent overlap
+                ticks={chartTicks}
+                tick={<MetricBoundaryAxisTick boundaries={chartTicks} />}
+                interval={0}
+                height={32}
               />
               <YAxis
                 tickLine={false}
                 axisLine={false}
-                unit="ms"
                 allowDecimals={false}
                 orientation="left"
                 type="number"
-                tick={{ dx: -10 }}
-                mirror={true}
+                width={1}
+                mirror
+                tick={{ dx: 8 }}
+                tickFormatter={(value) => `${value}\u00a0ms`}
               />
               <ChartTooltip
                 cursor={false}
-                formatter={(v: any) => v === null ? null : `${Math.round(v)} ms`}
+                formatter={(value) =>
+                  typeof value === "number" ? `${Math.round(value)} ms` : value
+                }
                 content={
                   <ChartTooltipContent
-                    labelFormatter={lableFormatter}
+                    labelFormatter={labelFormatter}
                     indicator="dot"
                   />
                 }
               />
-              <ChartLegend onClick={handleLegendClick} />
-              {(() => {
-                const minInterval = Math.min(
-                  ...tasks
-                    .map((t) => t.interval || Infinity)
-                    .filter((v) => v !== undefined)
-                );
-                return tasks.map((task, idx) => {
-                  const interval = task.interval || minInterval;
-                  // 对于 interval 大于最小 interval 的任务，开启 connectNulls，
-                  // 这样它们不会因为其他任务的额外时间点被打断。
-                  const connect = interval > minInterval;
-                  return (
-                    <Line
-                      key={task.id}
-                      dataKey={String(task.id)}
-                      name={task.name}
-                      stroke={colors[idx % colors.length]}
-                      dot={false}
-                      isAnimationActive={false}
-                      strokeWidth={2}
-                      connectNulls={connect}
-                      type={cutPeak ? "basisOpen" : "linear"}
-                      hide={!!hiddenLines[task.id]}
-                    />
-                  );
-                });
-              })()}
+              {built.series.map((item) => (
+                <Line
+                  key={item.dataKey}
+                  dataKey={item.dataKey}
+                  name={item.dataKey}
+                  stroke={item.color}
+                  dot={item.pointCount <= 30}
+                  isAnimationActive={false}
+                  strokeWidth={2}
+                  connectNulls={false}
+                  type="linear"
+                  hide={hiddenLines[item.dataKey] === true}
+                />
+              ))}
             </LineChart>
           </ChartContainer>
-        )
-      )}
-      <div className="-mt-3 flex items-center" style={{ display: loading ? "none" : "flex" }}>
-        <Switch size="1" checked={cutPeak} onCheckedChange={setCutPeak} />
-        <label htmlFor="cut-peak" className="text-sm font-medium flex items-center gap-1 flex-row">
-          {t("chart.cutPeak")}
-          <Tips mode="popup" side="top"><span dangerouslySetInnerHTML={{ __html: t("chart.cutPeak_tips") }} /></Tips>
-        </label>
 
-      </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Switch
+              size="1"
+              checked={ewmaEnabled}
+              onCheckedChange={setEwmaEnabled}
+              aria-label="EWMA"
+            />
+            <span className="text-sm font-medium">EWMA</span>
+            <Tips mode="auto" side="top">
+              <span
+                dangerouslySetInnerHTML={{ __html: t("chart.cutPeak_tips") }}
+              />
+            </Tips>
+          </div>
+        </>
+      )}
     </Card>
   );
 };

@@ -27,6 +27,7 @@ const InnerLayout = () => {
   const { account, loading, error, refresh } = useAccount();
   const [usernameSaving, setUsernameSaving] = React.useState(false);
   const [passwordSaving, setPasswordSaving] = React.useState(false);
+  const [passwordTwoFa, setPasswordTwoFa] = React.useState("");
   if (loading) {
     return <Loading />;
   }
@@ -84,6 +85,10 @@ const InnerLayout = () => {
       toast.error(t("account.password_strength_error"));
       return;
     }
+    if (account?.["2fa_enabled"] && !passwordTwoFa) {
+      toast.error(t("account.otp_empty_error"));
+      return;
+    }
     setPasswordSaving(true);
     fetch("/api/admin/update/user", {
       method: "POST",
@@ -93,6 +98,7 @@ const InnerLayout = () => {
       body: JSON.stringify({
         uuid: account?.uuid,
         password: password,
+        "2fa_code": passwordTwoFa,
       }),
     })
       .then(async (response) => {
@@ -104,6 +110,7 @@ const InnerLayout = () => {
       })
       .then(() => {
         toast.success(t("common.updated_successfully"));
+        setPasswordTwoFa("");
         setTimeout(() => {
           window.location.href = "/";
         }, 2000);
@@ -170,7 +177,7 @@ const InnerLayout = () => {
           const error = await response.json();
           toast.error(t("account_settings.unbind_sso_failed", { 
             provider: getSSODisplayName(ssoInfo.platform),
-            error: error.message || t("account_settings.unknown_error")
+            error: error.message || t("common.unknownError")
           }));
         }
       } else {
@@ -183,14 +190,14 @@ const InnerLayout = () => {
   };
   return (
     <Flex gap="4" direction="column" align="start">
-      <Flex gap="4" direction="row" className="p-4" wrap="wrap">
+      <Flex gap="4" direction="row" className="km-page-admin-account p-4" wrap="wrap">
         <Flex gap="2" direction="column" className="w-full">
           <label className="text-2xl font-bold">{t("account.title")}</label>
           <label className="text-lg">
             {t("account.greeting", { username: account?.username })}
           </label>
           <form
-            className="flex gap-2 flex-col"
+            className="km-account-profile-form flex gap-2 flex-col"
             onSubmit={handleSubmitUsernameChange}
           >
             <label className="font-bold" htmlFor="username">
@@ -209,7 +216,7 @@ const InnerLayout = () => {
               </Button>
             </div>
           </form>
-          <form onSubmit={changePassword} className="flex flex-col gap-2">
+          <form onSubmit={changePassword} className="km-account-password-form flex flex-col gap-2">
             <label className="font-bold" htmlFor="old_password">
               {t("account.change_password_title")}
             </label>
@@ -229,6 +236,24 @@ const InnerLayout = () => {
               name="password_repeat"
               type="password"
             ></TextField.Root>
+            {account?.["2fa_enabled"] ? (
+              <>
+                <label htmlFor="password_2fa">
+                  {t("account.2fa_otp_input_prompt")}
+                </label>
+                <TextField.Root
+                  className="max-w-128"
+                  id="password_2fa"
+                  name="password_2fa"
+                  type="number"
+                  placeholder="000000"
+                  value={passwordTwoFa}
+                  onChange={(e) =>
+                    setPasswordTwoFa((e.target as HTMLInputElement).value)
+                  }
+                />
+              </>
+            ) : null}
             <div>
               <Button disabled={passwordSaving} type="submit">
                 {t("account.change_password_button")}
@@ -236,7 +261,7 @@ const InnerLayout = () => {
             </div>
           </form>
         </Flex>
-        <Flex direction="column" className="gap-2">
+        <Flex direction="column" className="km-account-2fa gap-2">
           <label className="font-bold text-2xl">2FA</label>
           {account?.["2fa_enabled"] ? (
             <TwoFactorEnabled />
@@ -248,7 +273,7 @@ const InnerLayout = () => {
           </label>
 
           {/* SSO账户绑定/解绑 */}
-          <div className="mb-8 flex flex-col gap-4 ">
+          <div className="km-account-sso mb-8 flex flex-col gap-4 ">
             {(() => {
               const ssoInfo = getSSOInfo();
               const platform = ssoInfo?.platform || '';
@@ -259,7 +284,7 @@ const InnerLayout = () => {
                 <>
                   <label className="text-xl font-semibold flex items-center gap-2">
                     {ssoInfo?.isBound ? icon : <User className="size-5" />}
-                    {ssoInfo?.isBound ? `${displayName}账户` : t("account_settings.sso_account")}
+                    {ssoInfo?.isBound ? t("account_settings.sso_account_bound", { name: displayName }) : t("account_settings.sso_account")}
                   </label>
                   <div className="p-4 bg-[var(--accent-2)] rounded-lg">
                     <p>
@@ -273,7 +298,7 @@ const InnerLayout = () => {
                       ) : (
                         <div className="flex items-center gap-2">
                           <Badge color="gray">
-                            {t("account_settings.sso_unbound")}
+                            {t("account_settings.sso_not_bound")}
                           </Badge>
                           {t("account_settings.sso_not_bound")}
                         </div>
@@ -296,7 +321,7 @@ const InnerLayout = () => {
                           <Flex gap="2" justify="end" className="mt-4">
                             <Dialog.Close>
                               <Button variant="soft">
-                                {t("account_settings.cancel")}
+                                {t("common.cancel")}
                               </Button>
                             </Dialog.Close>
                             <Button color="red" onClick={handleSSOAuth}>
@@ -383,7 +408,7 @@ const TwoFactorDisabled = () => {
   };
 
   return (
-    <Flex direction="column" gap="2">
+    <Flex direction="column" gap="2" className="km-account-2fa-enable">
       <label className="text-lg font-bold">{t("account.2fa_disabled")}</label>
       <Dialog.Root open={isOpen} onOpenChange={setIsOpen}>
         <Dialog.Trigger>
@@ -403,7 +428,7 @@ const TwoFactorDisabled = () => {
               )}
             </div>
             <label>{t("account.2fa_otp_input_prompt")}</label>
-            <form className="flex flex-col gap-2" onSubmit={handleEnable2fa}>
+            <form className="km-account-2fa-form flex flex-col gap-2" onSubmit={handleEnable2fa}>
               <TextField.Root
                 type="number"
                 name="code"
@@ -426,10 +451,15 @@ const TwoFactorEnabled = () => {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
+  const [code, setCode] = React.useState("");
   const { refresh } = useAccount();
   const disable2fa = () => {
+    if (!code) {
+      toast.error(t("account.otp_empty_error"));
+      return;
+    }
     setSaving(true);
-    fetch("/api/admin/2fa/disable", {
+    fetch(`/api/admin/2fa/disable?2fa_code=${encodeURIComponent(code)}`, {
       method: "POST",
     })
       .then(async (response) => {
@@ -442,6 +472,7 @@ const TwoFactorEnabled = () => {
       .then(() => {
         toast.success(t("common.updated_successfully"));
         setIsOpen(false);
+        setCode("");
         refresh();
       })
       .catch((error) => {
@@ -452,7 +483,7 @@ const TwoFactorEnabled = () => {
       });
   };
   return (
-    <Flex direction="column" gap="2">
+    <Flex direction="column" gap="2" className="km-account-2fa-disable">
       <label>{t("account.2fa_enabled")}</label>
       <div>
         <Dialog.Root open={isOpen} onOpenChange={setIsOpen}>
@@ -466,6 +497,18 @@ const TwoFactorEnabled = () => {
             <Dialog.Description>
               {t("account.disable_2fa_confirmation")}
             </Dialog.Description>
+            <Flex direction="column" gap="2" className="mt-4">
+              <label htmlFor="disable_2fa_code">
+                {t("account.2fa_otp_input_prompt")}
+              </label>
+              <TextField.Root
+                id="disable_2fa_code"
+                type="number"
+                placeholder="000000"
+                value={code}
+                onChange={(e) => setCode((e.target as HTMLInputElement).value)}
+              />
+            </Flex>
             <Flex gap="2" justify="end" className="mt-4">
               <Button variant="soft" onClick={() => setIsOpen(false)}>
                 {t("common.cancel")}

@@ -34,19 +34,29 @@ interface NodeProps {
   basic: NodeBasicInfo;
   live: Record | undefined;
   online: boolean;
+  isMobile: boolean;
+  showIpTagsInCard: boolean;
 }
-const Node = React.memo(({ basic, live, online }: NodeProps) => {
-  const [t] = useTranslation();
-  const isMobile = useIsMobile();
-  const { publicInfo } = usePublicInfo();
-  const defaultLive = {
-    cpu: { usage: 0 },
-    ram: { used: 0 },
-    disk: { used: 0 },
-    network: { up: 0, down: 0, totalUp: 0, totalDown: 0 },
-  } as Record;
+const DEFAULT_NODE_LIVE = {
+  cpu: { usage: 0 },
+  ram: { used: 0 },
+  swap: { used: 0 },
+  load: { load1: 0, load5: 0, load15: 0 },
+  disk: { used: 0 },
+  network: { up: 0, down: 0, totalUp: 0, totalDown: 0 },
+  connections: { tcp: 0, udp: 0 },
+  uptime: 0,
+  process: 0,
+  message: "",
+  updated_at: "",
+} as Record;
 
-  const liveData = live || defaultLive;
+const Node = React.memo(
+  ({ basic, live, online, isMobile, showIpTagsInCard }: NodeProps) => {
+  const [t] = useTranslation();
+  const liveData = live || DEFAULT_NODE_LIVE;
+  const osImage = React.useMemo(() => getOSImage(basic.os), [basic.os]);
+  const osName = React.useMemo(() => getOSName(basic.os), [basic.os]);
 
   const memoryUsagePercent = basic.mem_total
     ? (liveData.ram.used / basic.mem_total) * 100
@@ -68,11 +78,11 @@ const Node = React.memo(({ basic, live, online }: NodeProps) => {
         transition: "all 0.2s ease-in-out",
       }}
       id={basic.uuid}
-      className="node-card hover:cursor-pointer hover:shadow-lg hover:bg-accent-2"
+      className="km-node-card node-card hover:cursor-pointer hover:shadow-lg hover:bg-accent-2"
     >
       <Flex direction="column" gap="2">
         <Flex justify="between" align="center" my={isMobile ? "-1" : "0"}>
-          <Flex justify="start" align="center" style={{ flex: 1, minWidth: 0 }}>
+          <Flex justify="start" align="center" style={{ flex: 1, minWidth: 0 }} className="km-node-region">
             <Flag flag={basic.region} />
             <Link
               to={`/instance/${basic.uuid}`}
@@ -80,6 +90,7 @@ const Node = React.memo(({ basic, live, online }: NodeProps) => {
             >
               <Flex direction="column" style={{ minWidth: 0 }}>
                 <Text
+                  className="km-node-name"
                   weight="bold"
                   size={isMobile ? "2" : "4"}
                   truncate
@@ -105,32 +116,29 @@ const Node = React.memo(({ basic, live, online }: NodeProps) => {
                   expired_at={basic.expired_at}
                   currency={basic.currency}
                   tags={basic.tags}
-                  ip4={
-                    publicInfo?.theme_settings?.showIpTagsInCard
-                      ? basic.ipv4
-                      : undefined
-                  }
-                  ip6={
-                    publicInfo?.theme_settings?.showIpTagsInCard
-                      ? basic.ipv6
-                      : undefined
-                  }
+                  ip4={showIpTagsInCard ? basic.ipv4 : undefined}
+                  ip6={showIpTagsInCard ? basic.ipv6 : undefined}
                 />
               </Flex>
             </Link>
           </Flex>
-          <Flex gap="2" align="center" style={{ flex: "none" }}>
+          <Flex gap="2" align="center" style={{ flex: "none" }} className="km-node-chart">
             {live?.message && <Tips color="#CE282E">{live.message}</Tips>}
             <MiniPingChartFloat
               uuid={basic.uuid}
               hours={24}
               trigger={
-                <IconButton variant="ghost" size="1">
+                <IconButton
+                  variant="ghost"
+                  size="1"
+                  title={t("nodeCard.chart", "Chart")}
+                  aria-label={t("nodeCard.chart", "Chart")}
+                >
                   <TrendingUp size="14" />
                 </IconButton>
               }
             />
-            <Badge color={online ? "green" : "red"} variant="soft">
+            <Badge color={online ? "green" : "red"} variant="soft" className="km-node-status">
               {online ? t("nodeCard.online") : t("nodeCard.offline")}
             </Badge>
           </Flex>
@@ -145,18 +153,18 @@ const Node = React.memo(({ basic, live, online }: NodeProps) => {
             </Text>
             <Flex align="center">
               <img
-                src={getOSImage(basic.os)}
+                src={osImage}
                 alt={basic.os}
                 className="w-5 h-5 mr-2"
               />
               <Text size="2">
-                {getOSName(basic.os)} / {basic.arch}
+                {osName} / {basic.arch}
               </Text>
             </Flex>
           </Flex>
           <Flex className="md:flex-col flex-row md:gap-1 gap-4">
             {/* CPU Usage */}
-            <UsageBar label={t("nodeCard.cpu")} value={liveData.cpu.usage} />
+            <UsageBar label={t("admin.nodeDetail.cpu")} value={liveData.cpu.usage} />
 
             {/* Memory Usage */}
             <UsageBar label={t("nodeCard.ram")} value={memoryUsagePercent} />
@@ -283,6 +291,7 @@ export default Node;
 type NodeGridProps = {
   nodes: NodeBasicInfo[];
   liveData: LiveData;
+  onlineSet: ReadonlySet<string>;
 };
 
 import { Box } from "@radix-ui/themes";
@@ -295,32 +304,33 @@ import { TrendingUp } from "lucide-react";
 import MiniPingChartFloat from "./MiniPingChartFloat";
 import { getOSImage, getOSName } from "@/utils";
 import { usePublicInfo } from "@/contexts/PublicInfoContext";
-export const NodeGrid = ({ nodes, liveData }: NodeGridProps) => {
+export const NodeGrid = ({ nodes, liveData, onlineSet }: NodeGridProps) => {
   const { publicInfo } = usePublicInfo();
+  const isMobile = useIsMobile();
+  const showIpTagsInCard = Boolean(
+    publicInfo?.theme_settings?.showIpTagsInCard,
+  );
   const offlineServerPosition =
     publicInfo?.theme_settings?.offlineServerPosition; // "First/Keep/Last"
-  // 确保liveData是有效的
-  const onlineNodes = liveData && liveData.online ? liveData.online : [];
 
   // 排序节点：先按权重排序，权重大的靠前，再根据用户设置排序
-  const sortedNodes = [...nodes].sort((a, b) => {
-    const aIsOnline = onlineNodes.includes(a.uuid);
-    const bIsOnline = onlineNodes.includes(b.uuid);
+  const sortedNodes = React.useMemo(() => [...nodes].sort((a, b) => {
+    const aIsOnline = onlineSet.has(a.uuid);
+    const bIsOnline = onlineSet.has(b.uuid);
 
     if (offlineServerPosition === "First") {
       if (!aIsOnline && bIsOnline) return -1;
       if (aIsOnline && !bIsOnline) return 1;
-    } else if (offlineServerPosition === "Keep") {
-    } else {
+    } else if (offlineServerPosition !== "Keep") {
       if (aIsOnline && !bIsOnline) return -1;
       if (!aIsOnline && bIsOnline) return 1;
     }
     return a.weight - b.weight;
-  });
+  }), [nodes, offlineServerPosition, onlineSet]);
 
   return (
     <Box
-      className="gap-2 md:gap-4"
+      className="km-node-list gap-2 md:gap-4"
       style={{
         display: "grid",
         gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
@@ -330,9 +340,8 @@ export const NodeGrid = ({ nodes, liveData }: NodeGridProps) => {
       }}
     >
       {sortedNodes.map((node) => {
-        const isOnline = onlineNodes.includes(node.uuid);
-        const nodeData =
-          liveData && liveData.data ? liveData.data[node.uuid] : undefined;
+        const isOnline = onlineSet.has(node.uuid);
+        const nodeData = liveData.data[node.uuid];
 
         return (
           <Node
@@ -340,6 +349,8 @@ export const NodeGrid = ({ nodes, liveData }: NodeGridProps) => {
             basic={node}
             live={nodeData}
             online={isOnline}
+            isMobile={isMobile}
+            showIpTagsInCard={showIpTagsInCard}
           />
         );
       })}

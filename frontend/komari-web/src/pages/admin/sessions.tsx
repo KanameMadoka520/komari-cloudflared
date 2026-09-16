@@ -58,7 +58,7 @@ export default function Sessions() {
       .then((response) => response.json())
       .then((data) => {
         if (data.status === "success") {
-          toast.success("会话已删除");
+          toast.success(t("sessions.deleted_successfully"));
           if (isCurrent) {
             window.location.href = "/"; // 登出
             return;
@@ -69,7 +69,7 @@ export default function Sessions() {
           }));
         } else {
           console.error("Failed to delete session:", data);
-          toast.error("删除失败");
+          toast.error(t("sessions.delete_failed"));
         }
       })
       .catch((error) => {
@@ -106,7 +106,7 @@ export default function Sessions() {
   }
 
   return (
-    <div className="p-4">
+    <div className="km-page-admin-sessions p-4">
       <h1 className="text-2xl font-semibold mb-4">{t("sessions.title")}</h1>
       <div className="mb-4">
         <Dialog.Root>
@@ -120,18 +120,18 @@ export default function Sessions() {
             </Dialog.Description>
             <Flex gap="2" justify={"end"}>
               <Dialog.Trigger>
-                <Button variant="soft">{t("sessions.cancel")}</Button>
+                <Button variant="soft">{t("common.cancel")}</Button>
               </Dialog.Trigger>
               <Dialog.Trigger>
                 <Button color="red" onClick={deleteAllSessions}>
-                  {t("delete")}
+                  {t("common.delete")}
                 </Button>
               </Dialog.Trigger>
             </Flex>
           </Dialog.Content>
         </Dialog.Root>
       </div>
-      <div className="overflow-hidden rounded-lg">
+      <div className="km-sessions-table overflow-hidden rounded-lg">
         <Table>
           <TableHeader>
             <TableRow>
@@ -140,7 +140,7 @@ export default function Sessions() {
               <TableHead>IP</TableHead>
               <TableHead>Latest IP</TableHead>
               <TableHead>{t("sessions.expires_at")}</TableHead>
-              <TableHead>{t("sessions.last_login", "上次登录")}</TableHead>
+              <TableHead>{t("sessions.last_login")}</TableHead>
               <TableHead>{t("sessions.actions")}</TableHead>
             </TableRow>
           </TableHeader>
@@ -148,7 +148,7 @@ export default function Sessions() {
             {sessions.data.map((s) => {
               const isCurrent = s.session === sessions.current;
               return (
-                <TableRow key={s.uuid}>
+                <TableRow key={s.uuid} className="km-session-item">
                   <TableCell>
                     <Dialog.Root>
                       <Dialog.Trigger>
@@ -171,7 +171,7 @@ export default function Sessions() {
                           </label>
                           <label className="text-sm">{s.session}</label>
                           <label className="text-base font-bold">
-                            IP / {t("sessions.latest_ip", "Latest IP")}
+                            IP / {t("sessions.latest_ip")}
                           </label>
                           <label className="text-sm">
                             {s.ip} / {s.latest_ip}
@@ -181,7 +181,7 @@ export default function Sessions() {
                           </label>
                           <label className="text-sm">{s.user_agent}</label>
                           <label className="text-sm text-muted-foreground font-bold">
-                            {UserAgentHelper.format(s.user_agent)}
+                            {UserAgentHelper.format(s.user_agent, t)}
                           </label>
                           <label className="text-base font-bold">
                             {t("sessions.last_user_agent")}
@@ -190,7 +190,7 @@ export default function Sessions() {
                             {s.latest_user_agent}
                           </label>
                           <label className="text-sm text-muted-foreground font-bold">
-                            {UserAgentHelper.format(s.latest_user_agent)}
+                            {UserAgentHelper.format(s.latest_user_agent, t)}
                           </label>
 
                           <label className="text-base font-bold">
@@ -198,7 +198,7 @@ export default function Sessions() {
                           </label>
                           <label className="text-sm">{s.login_method}</label>
                           <label className="text-base font-bold">
-                            {t("sessions.latest_online", "Latest Online")}
+                            {t("sessions.latest_online")}
                           </label>
                           <label className="text-sm">
                             {new Date(s.latest_online).toLocaleString()}
@@ -211,21 +211,21 @@ export default function Sessions() {
                             {new Date(s.created_at).toLocaleString()}
                           </label>
                           <label className="text-base font-bold">
-                            {t("sessions.expires_at", "Expires At")}
+                            {t("sessions.expires_at")}
                           </label>
                           <label className="text-sm">
                             {new Date(s.expires).toLocaleString()}
                           </label>
                           <Flex justify={"end"}>
                             <Dialog.Trigger>
-                              <Button variant="soft">{t("close")}</Button>
+                              <Button variant="soft">{t("common.close")}</Button>
                             </Dialog.Trigger>
                           </Flex>
                         </Flex>
                       </Dialog.Content>
                     </Dialog.Root>
                   </TableCell>
-                  <TableCell>{UserAgentHelper.format(s.user_agent)}</TableCell>
+                  <TableCell>{UserAgentHelper.format(s.user_agent, t)}</TableCell>
                   <TableCell>{s.ip}</TableCell>
                   <TableCell>{s.latest_ip}</TableCell>
                   <TableCell>{new Date(s.expires).toLocaleString()}</TableCell>
@@ -237,13 +237,13 @@ export default function Sessions() {
                       {!isCurrent && (
                         <Dialog.Trigger>
                           <Button color="red" variant="ghost">
-                            {t("delete")}
+                            {t("common.delete")}
                           </Button>
                         </Dialog.Trigger>
                       )}
                       <Dialog.Content>
                         <Dialog.Title>
-                          {t("sessions.confirm_delete")}
+                          {t("common.confirm_delete")}
                         </Dialog.Title>
                         <Dialog.Description>
                           {t("sessions.delete_one_desc")}
@@ -251,7 +251,7 @@ export default function Sessions() {
                         <Flex gap="2" justify={"end"}>
                           <Dialog.Trigger>
                             <Button variant="soft">
-                              {t("sessions.cancel")}
+                              {t("common.cancel")}
                             </Button>
                           </Dialog.Trigger>
                           <Dialog.Trigger>
@@ -259,7 +259,7 @@ export default function Sessions() {
                               color="red"
                               onClick={() => deleteSession(s.session)}
                             >
-                              {t("delete")}
+                              {t("common.delete")}
                             </Button>
                           </Dialog.Trigger>
                         </Flex>

@@ -14,7 +14,6 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Selector } from "@/components/Selector";
-
 // 服务器视图：按服务器聚合展示其绑定的任务，并可快速增删绑定
 export const ServerView = ({ pingTasks }: { pingTasks: PingTask[] }) => {
   const { t } = useTranslation();
@@ -32,7 +31,7 @@ export const ServerView = ({ pingTasks }: { pingTasks: PingTask[] }) => {
   );
 
   return (
-    <div className="rounded-xl overflow-hidden">
+    <div className="km-page-admin-pingtask-server km-pingtask-server-list rounded-xl overflow-hidden">
       <Table>
         <TableHeader>
           <TableHead className="w-48">{t("common.server")}</TableHead>
@@ -40,7 +39,12 @@ export const ServerView = ({ pingTasks }: { pingTasks: PingTask[] }) => {
         </TableHeader>
         <TableBody>
           {sortedNodes.map((n) => (
-            <ServerRow key={n.uuid} nodeUuid={n.uuid} nodeName={n.name} pingTasks={pingTasks} />
+            <ServerRow
+              key={n.uuid}
+              nodeUuid={n.uuid}
+              nodeName={n.name}
+              pingTasks={pingTasks}
+            />
           ))}
         </TableBody>
       </Table>
@@ -95,8 +99,9 @@ const ServerRow: React.FC<{
           id: task.id,
           name: task.name,
           type: task.type,
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
           target: task.target!,
+          default_on: task.default_on || false,
           clients: Array.from(current),
           interval: task.interval,
         };
@@ -140,11 +145,15 @@ const ServerRow: React.FC<{
           {ownedTasks.length > 0 ? display : t("common.none")}
           <Dialog.Root open={open} onOpenChange={setOpen}>
             <Dialog.Trigger>
-              <IconButton variant="ghost">
+              <IconButton
+                variant="ghost"
+                title={t("common.select_tasks", "Select tasks")}
+                aria-label={t("common.select_tasks", "Select tasks")}
+              >
                 <MoreHorizontal size={16} />
               </IconButton>
             </Dialog.Trigger>
-            <Dialog.Content maxWidth="450px">
+            <Dialog.Content maxWidth="450px" className="km-pingtask-server-form">
               <Dialog.Title>
                 {t("common.server")} - {nodeName}
               </Dialog.Title>
@@ -157,6 +166,11 @@ const ServerRow: React.FC<{
                   getLabel={(task) => (
                     <span className="text-sm">
                       {task.name}
+                      {task.default_on && (
+                        <span className="ml-2 text-xs text-accent-11">
+                          {t("ping.default_on_short")}
+                        </span>
+                      )}
                       <span className="ml-2 text-xs text-gray-500">
                         {task.type}/{task.interval}s
                       </span>

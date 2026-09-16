@@ -1,6 +1,6 @@
 package utils
 
 var (
-	CurrentVersion = "Komari-cloudflared分支beta"
+	CurrentVersion = "1.5.0-fix1-cloudflared.1"
 	VersionHash    = "unknown"
 )

@@ -2,7 +2,6 @@ import { LiveDataProvider } from "@/contexts/LiveDataContext";
 import Footer from "../components/Footer";
 import NavBar from "../components/NavBar";
 import { Outlet } from "react-router-dom";
-import { NodeListProvider } from "@/contexts/NodeListContext";
 import { usePublicInfo } from "@/contexts/PublicInfoContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -21,15 +20,15 @@ const IndexLayout = () => {
         <div
           className={
             bgUrl
-              ? "layout flex flex-col w-full min-h-screen bg-cover bg-center bg-fixed bg-no-repeat"
-              : "layout flex flex-col w-full min-h-screen bg-accent-1"
+              ? "km-layout layout flex flex-col w-full min-h-screen bg-cover bg-center bg-fixed bg-no-repeat"
+              : "km-layout layout flex flex-col w-full min-h-screen bg-accent-1"
           }
           style={{
             backgroundImage: bgUrl ? `url(${bgUrl})` : "none",
           }}
         >
           <main
-            className="main-content m-1 h-full"
+            className="km-main main-content m-1 h-full"
             style={{
               width: `${mainContentWidth}vw`,
               marginLeft: "auto",
@@ -47,9 +46,7 @@ const IndexLayout = () => {
 
   return (
     <LiveDataProvider>
-      <NodeListProvider>
-        <InnerLayout />
-      </NodeListProvider>
+      <InnerLayout />
     </LiveDataProvider>
   );
 };

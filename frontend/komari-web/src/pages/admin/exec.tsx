@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useMemo, type CSSProperties, type KeyboardEvent } from "react";
 import Loading from "@/components/loading";
 import { NodeDetailsProvider, useNodeDetails } from "@/contexts/NodeDetailsContext";
 import { useTranslation } from "react-i18next";
@@ -6,12 +6,12 @@ import {
     Button,
     Card,
     Flex,
-    TextField,
     Text,
     Separator,
-    Badge
+    Badge,
+    TextField
 } from "@radix-ui/themes";
-import { Play, Terminal, AlertCircle, CheckCircle2, Copy, Clock } from "lucide-react";
+import { Play, AlertCircle, CheckCircle2, Copy, Clock } from "lucide-react";
 import { toast } from "sonner";
 import NodeSelector from "@/components/NodeSelector";
 import { SettingCardCollapse } from "@/components/admin/SettingCard";
@@ -51,6 +51,37 @@ interface TaskResultResponse {
     data?: TaskResult[];
 }
 
+const COMMAND_EDITOR_ID = "remote-exec-command-editor";
+const COMMAND_EDITOR_COLLAPSED_LINES = 3;
+const COMMAND_EDITOR_LINE_HEIGHT_VAR = "--command-editor-line-height";
+const COMMAND_EDITOR_VERTICAL_PADDING_VAR = "--command-editor-vertical-padding";
+const COMMAND_EDITOR_COLLAPSED_HEIGHT = `calc(${COMMAND_EDITOR_COLLAPSED_LINES} * var(${COMMAND_EDITOR_LINE_HEIGHT_VAR}) + var(${COMMAND_EDITOR_VERTICAL_PADDING_VAR}))`;
+const COMMAND_EDITOR_LINE_NUMBER_LIMIT = 500;
+// 客户端标记“执行超时”的内部结果（避免在 UI 中展示硬编码中文）
+const TIMEOUT_RESULT_MARKER = "__komari_exec_timeout__";
+
+const parsePixelValue = (value: string) => {
+    const parsedValue = Number.parseFloat(value);
+    return Number.isFinite(parsedValue) ? parsedValue : 0;
+};
+
+const getCommandEditorBorderHeight = (element: HTMLElement | null) => {
+    if (!element) {
+        return 0;
+    }
+
+    const style = window.getComputedStyle(element);
+    return parsePixelValue(style.borderTopWidth) + parsePixelValue(style.borderBottomWidth);
+};
+
+const getCommandEditorCollapsedHeight = (textarea: HTMLTextAreaElement, editor: HTMLElement | null) => {
+    const style = window.getComputedStyle(textarea);
+    const lineHeight = parsePixelValue(style.lineHeight);
+    const verticalPadding = parsePixelValue(style.paddingTop) + parsePixelValue(style.paddingBottom);
+
+    return COMMAND_EDITOR_COLLAPSED_LINES * lineHeight + verticalPadding + getCommandEditorBorderHeight(editor);
+};
+
 const ExecPage = () => {
     return (
         <NodeDetailsProvider>
@@ -68,10 +99,52 @@ const ExecContent = () => {
     const [results, setResults] = useState<TaskResult[]>([]);
     const [taskId, setTaskId] = useState<string | null>(null);
     const [polling, setPolling] = useState(false);
+    const [commandFocused, setCommandFocused] = useState(false);
+    const [commandEditorHeight, setCommandEditorHeight] = useState(COMMAND_EDITOR_COLLAPSED_HEIGHT);
+    const [twoFaEnabled, setTwoFaEnabled] = useState(false);
+    const [twoFaCode, setTwoFaCode] = useState("");
 
     // 使用 useRef 来保存轮询相关的引用
-    const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-    const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const commandTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+    const commandEditorRef = useRef<HTMLDivElement | null>(null);
+    const commandLineGutterRef = useRef<HTMLDivElement | null>(null);
+
+    const commandLineCount = useMemo(() => {
+        return command === "" ? 1 : command.split("\n").length;
+    }, [command]);
+
+    const commandLineLabels = useMemo(() => {
+        if (commandFocused) {
+            const renderedLineCount = Math.min(commandLineCount, COMMAND_EDITOR_LINE_NUMBER_LIMIT);
+            const labels = Array.from({ length: renderedLineCount }, (_, index) => String(index + 1));
+
+            if (commandLineCount > renderedLineCount) {
+                labels.push(`+${commandLineCount - renderedLineCount}`);
+            }
+
+            return labels;
+        }
+
+        if (commandLineCount <= COMMAND_EDITOR_COLLAPSED_LINES) {
+            return Array.from({ length: commandLineCount }, (_, index) => String(index + 1));
+        }
+
+        const visibleNumberedLines = COMMAND_EDITOR_COLLAPSED_LINES - 1;
+        const remainingLines = commandLineCount - visibleNumberedLines;
+        return [
+            ...Array.from({ length: visibleNumberedLines }, (_, index) => String(index + 1)),
+            `+${remainingLines}`,
+        ];
+    }, [commandFocused, commandLineCount]);
+
+    const commandEditorStyle = useMemo<CSSProperties>(() => ({
+        [COMMAND_EDITOR_LINE_HEIGHT_VAR]: "1.5rem",
+        [COMMAND_EDITOR_VERTICAL_PADDING_VAR]: "1.5rem",
+        height: commandEditorHeight,
+        maxHeight: commandFocused ? "60vh" : COMMAND_EDITOR_COLLAPSED_HEIGHT,
+    }), [commandEditorHeight, commandFocused]);
 
     // 清理轮询的函数
     const clearPolling = () => {
@@ -92,6 +165,41 @@ const ExecContent = () => {
             clearPolling();
         };
     }, []);
+
+    useEffect(() => {
+        fetch("/api/me")
+            .then((response) => response.json())
+            .then((data) => {
+                setTwoFaEnabled(Boolean(data?.["2fa_enabled"]));
+            })
+            .catch(() => {
+                setTwoFaEnabled(false);
+            });
+    }, []);
+
+    useLayoutEffect(() => {
+        const textarea = commandTextareaRef.current;
+        if (!textarea) {
+            return;
+        }
+
+        if (!commandFocused) {
+            textarea.scrollTop = 0;
+            if (commandLineGutterRef.current) {
+                commandLineGutterRef.current.scrollTop = 0;
+            }
+            setCommandEditorHeight(COMMAND_EDITOR_COLLAPSED_HEIGHT);
+            return;
+        }
+
+        textarea.style.height = "0px";
+
+        const measuredHeight = textarea.scrollHeight + getCommandEditorBorderHeight(commandEditorRef.current);
+        const collapsedHeight = getCommandEditorCollapsedHeight(textarea, commandEditorRef.current);
+
+        setCommandEditorHeight(`${Math.max(collapsedHeight, measuredHeight)}px`);
+        textarea.style.height = "100%";
+    }, [command, commandFocused]);
 
     if (isLoading) {
         return <Loading />;
@@ -156,7 +264,7 @@ const ExecContent = () => {
             setResults(prevResults =>
                 prevResults.map(result =>
                     result.finished_at === null
-                        ? { ...result, finished_at: new Date().toISOString(), exit_code: -1, result: "执行超时" }
+                        ? { ...result, finished_at: new Date().toISOString(), exit_code: -1, result: TIMEOUT_RESULT_MARKER }
                         : result
                 )
             );
@@ -176,6 +284,11 @@ const ExecContent = () => {
             return;
         }
 
+        if (twoFaEnabled && !twoFaCode.trim()) {
+            toast.error(t("account.otp_empty_error"));
+            return;
+        }
+
         // 清理之前的轮询
         clearPolling();
 
@@ -190,8 +303,10 @@ const ExecContent = () => {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                    command: command.trim(),
+                    // Remote exec treats whitespace as script content, so preserve the user's exact input.
+                    command,
                     clients: selectedNodes,
+                    "2fa_code": twoFaCode,
                 }),
             });
 
@@ -204,20 +319,33 @@ const ExecContent = () => {
 
             if (data.success && data.task_id) {
                 setTaskId(data.task_id);
+                setTwoFaCode("");
                 toast.success(t("exec.taskStarted"));
                 startPolling(data.task_id);
             } else if (data.status === "success" && data.data?.task_id) {
                 setTaskId(data.data.task_id);
+                setTwoFaCode("");
                 toast.success(t("exec.taskStarted"));
                 startPolling(data.data.task_id);
             } else {
                 throw new Error(data.message);
             }
         } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : "未知错误";
+            const errorMessage = err instanceof Error ? err.message : t("common.unknownError");
             toast.error(errorMessage);
         } finally {
             setExecuting(false);
+        }
+    };
+
+    const handleCommandKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
+            return;
+        }
+
+        event.preventDefault();
+        if (!executing) {
+            executeCommand();
         }
     };
 
@@ -233,11 +361,15 @@ const ExecContent = () => {
         }).join(", ");
     };
 
+    // 超时标记结果展示为本地化文案
+    const displayResultText = (result: TaskResult) =>
+        result.result === TIMEOUT_RESULT_MARKER ? t("exec.status.timeout") : result.result;
+
     const getTaskStatus = (result: TaskResult) => {
         if (result.finished_at === null) {
             return { status: "running", color: "blue" as const, text: t("exec.status.running") };
         }
-        if (result.result === "执行超时") {
+        if (result.result === TIMEOUT_RESULT_MARKER) {
             return { status: "timeout", color: "orange" as const, text: t("exec.status.timeout", "超时") };
         }
         if (result.exit_code === 0) {
@@ -247,7 +379,7 @@ const ExecContent = () => {
     };
 
     return (
-        <div className="p-4 flex flex-col gap-3">
+        <div className="km-page-admin-exec km-exec-header p-4 flex flex-col gap-3">
             {/* 页面标题 */}
             <div>
                 <h1 className="text-2xl font-bold">{t("exec.title")}</h1>
@@ -259,22 +391,57 @@ const ExecContent = () => {
             <Separator size="4" />
 
             {/* 命令输入区域 */}
-            <Card className="p-6">
+            <Card className="km-exec-editor-card p-6">
                 <Flex direction="column" gap="4">
 
-                    <label className="text-xl font-bold">
+                    <label htmlFor={COMMAND_EDITOR_ID} className="text-xl font-bold">
                         {t("exec.command")}
                     </label>
-                    <TextField.Root
-                        value={command}
-                        onChange={(e) => setCommand(e.target.value)}
-                        placeholder={t("exec.commandPlaceholder")}
-                        size="3"
+                    <div
+                        ref={commandEditorRef}
+                        className="grid grid-cols-[3.75rem_minmax(0,1fr)] overflow-hidden rounded-md border border-[var(--gray-a7)] bg-[var(--color-surface)] transition-[height,border-color,box-shadow] duration-200 focus-within:border-[var(--accent-8)] focus-within:shadow-[0_0_0_1px_var(--accent-8)]"
+                        style={commandEditorStyle}
                     >
-                        <TextField.Slot>
-                            <Terminal size={16} />
-                        </TextField.Slot>
-                    </TextField.Root>
+                        <div
+                            ref={commandLineGutterRef}
+                            aria-hidden="true"
+                            className="km-exec-editor-gutter select-none overflow-hidden border-r border-[var(--gray-a5)] bg-[var(--gray-2)] px-2 text-right font-mono text-xs text-[var(--gray-11)] [line-height:var(--command-editor-line-height)] [padding-bottom:calc(var(--command-editor-vertical-padding)/2)] [padding-top:calc(var(--command-editor-vertical-padding)/2)]"
+                        >
+                            {commandLineLabels.map((label, index) => (
+                                <div
+                                    key={`${label}-${index}`}
+                                    className={label.startsWith("+") ? "font-medium text-[var(--accent-11)]" : undefined}
+                                >
+                                    {label}
+                                </div>
+                            ))}
+                        </div>
+                        <textarea
+                            id={COMMAND_EDITOR_ID}
+                            ref={commandTextareaRef}
+                            value={command}
+                            onChange={(e) => setCommand(e.target.value)}
+                            onFocus={() => setCommandFocused(true)}
+                            onBlur={() => setCommandFocused(false)}
+                            onKeyDown={handleCommandKeyDown}
+                            onScroll={(event) => {
+                                if (commandLineGutterRef.current) {
+                                    commandLineGutterRef.current.scrollTop = event.currentTarget.scrollTop;
+                                }
+                            }}
+                            placeholder={t("exec.commandPlaceholder")}
+                            rows={COMMAND_EDITOR_COLLAPSED_LINES}
+                            wrap="soft"
+                            spellCheck={false}
+                            className="km-exec-editor-input h-full w-full resize-none border-0 bg-transparent px-3 font-mono text-sm text-[var(--gray-12)] outline-none placeholder:text-[var(--gray-9)] [line-height:var(--command-editor-line-height)] [padding-bottom:calc(var(--command-editor-vertical-padding)/2)] [padding-top:calc(var(--command-editor-vertical-padding)/2)]"
+                            style={{
+                                maxHeight: commandFocused ? "60vh" : COMMAND_EDITOR_COLLAPSED_HEIGHT,
+                                overflowY: commandFocused ? "auto" : "hidden",
+                                overflowWrap: "break-word",
+                                whiteSpace: "pre-wrap",
+                            }}
+                        />
+                    </div>
 
 
                     <div>
@@ -293,9 +460,18 @@ const ExecContent = () => {
                     </div>
 
                     <Flex justify="end" gap="2">
+                        {twoFaEnabled ? (
+                            <TextField.Root
+                                className="w-32"
+                                type="number"
+                                placeholder="2FA"
+                                value={twoFaCode}
+                                onChange={(e) => setTwoFaCode((e.target as HTMLInputElement).value)}
+                            />
+                        ) : null}
                         <Button
                             onClick={executeCommand}
-                            disabled={executing || !command.trim() || selectedNodes.length === 0}
+                            disabled={executing || !command.trim() || selectedNodes.length === 0 || (twoFaEnabled && !twoFaCode.trim())}
                         >
                             {executing ? (
                                 <>
@@ -315,7 +491,7 @@ const ExecContent = () => {
 
             {/* 执行结果区域 */}
             {results.length > 0 && (
-                <Card className="p-6">
+                <Card className="km-exec-output p-6">
                     <Flex direction="column" gap="4">
                         <Flex justify="between" align="center">
                             <Text size="4" weight="medium">
@@ -378,7 +554,9 @@ const ExecContent = () => {
                                                     <Button
                                                         variant="ghost"
                                                         size="1"
-                                                        onClick={() => copyOutput(result.result)}
+                                                        onClick={() => copyOutput(displayResultText(result))}
+                                                        title={t("common.copy", "Copy")}
+                                                        aria-label={t("common.copy", "Copy")}
                                                     >
                                                         <Copy size={14} />
                                                     </Button>
@@ -400,7 +578,7 @@ const ExecContent = () => {
                                             {/* 输出内容 */}
                                             {result.result && (
                                                 <div className="bg-[var(--gray-2)] rounded-md p-3 font-mono text-sm overflow-x-auto">
-                                                    <pre className="whitespace-pre-wrap">{result.result}</pre>
+                                                    <pre className="whitespace-pre-wrap">{displayResultText(result)}</pre>
                                                 </div>
                                             )}
                                         </Flex>
@@ -415,7 +593,7 @@ const ExecContent = () => {
                                 <Flex align="center" gap="2">
                                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent" />
                                     <Text size="2" color="gray">
-                                        正在获取最新执行状态...
+                                        {t("exec.status.polling")}
                                     </Text>
                                 </Flex>
                                 <Button
@@ -423,7 +601,7 @@ const ExecContent = () => {
                                     size="1"
                                     onClick={clearPolling}
                                 >
-                                    停止轮询
+                                    {t("exec.stopPolling")}
                                 </Button>
                             </Flex>
                         )}

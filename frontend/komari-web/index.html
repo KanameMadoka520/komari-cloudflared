@@ -10,6 +10,49 @@
     />
     <meta name="author" content="Akizon77" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (() => {
+        const parseAppearance = (value) => {
+          if (!value) return "system";
+          try {
+            const parsed = JSON.parse(value);
+            return typeof parsed === "string" ? parsed : value;
+          } catch {
+            return value;
+          }
+        };
+
+        try {
+          const appearance = parseAppearance(localStorage.getItem("appearance"));
+          const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+          const isDark = appearance === "dark" || (appearance !== "light" && prefersDark);
+          document.documentElement.classList.toggle("dark", isDark);
+        } catch {
+          document.documentElement.classList.remove("dark");
+        }
+      })();
+    </script>
+    <style>
+      :where(html) {
+        background: #ffffff;
+        color-scheme: light;
+      }
+
+      :where(html.dark) {
+        background: #111111;
+        color-scheme: dark;
+      }
+
+      html,
+      body,
+      #root {
+        min-height: 100%;
+      }
+
+      body {
+        margin: 0;
+      }
+    </style>
     
     <!-- PWA Configuration -->
     <link rel="manifest" href="/manifest.json" />

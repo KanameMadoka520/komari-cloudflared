@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Table,
   TableBody,
@@ -27,6 +27,7 @@ import { usePublicInfo } from "@/contexts/PublicInfoContext";
 interface NodeTableProps {
   nodes: NodeBasicInfo[];
   liveData: LiveData;
+  onlineSet: ReadonlySet<string>;
 }
 
 type SortField =
@@ -48,7 +49,21 @@ interface SortState {
   order: SortOrder;
 }
 
-const NodeTable: React.FC<NodeTableProps> = ({ nodes, liveData }) => {
+const DEFAULT_TABLE_LIVE = {
+  cpu: { usage: 0 },
+  ram: { used: 0 },
+  swap: { used: 0 },
+  load: { load1: 0, load5: 0, load15: 0 },
+  disk: { used: 0 },
+  network: { up: 0, down: 0, totalUp: 0, totalDown: 0 },
+  connections: { tcp: 0, udp: 0 },
+  uptime: 0,
+  process: 0,
+  message: "",
+  updated_at: "",
+} as Record;
+
+const NodeTable: React.FC<NodeTableProps> = ({ nodes, liveData, onlineSet }) => {
   const [t] = useTranslation();
   const { publicInfo } = usePublicInfo();
   const offlineServerPosition =
@@ -59,7 +74,7 @@ const NodeTable: React.FC<NodeTableProps> = ({ nodes, liveData }) => {
     order: "default",
   });
 
-  const toggleRowExpansion = (uuid: string) => {
+  const toggleRowExpansion = useCallback((uuid: string) => {
     setExpandedRows((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(uuid)) {
@@ -69,9 +84,9 @@ const NodeTable: React.FC<NodeTableProps> = ({ nodes, liveData }) => {
       }
       return newSet;
     });
-  };
+  }, []);
 
-  const handleSort = (field: SortField) => {
+  const handleSort = useCallback((field: SortField) => {
     return (event: React.MouseEvent) => {
       event.preventDefault();
 
@@ -94,38 +109,26 @@ const NodeTable: React.FC<NodeTableProps> = ({ nodes, liveData }) => {
         }
       });
     };
-  };
+  }, []);
 
-  const getSortIcon = (field: SortField) => {
+  const getSortIcon = useCallback((field: SortField) => {
     if (sortState.field !== field) return null;
     return sortState.order === "asc" ? (
       <ChevronUp size={14} />
     ) : (
       <ChevronDown size={14} />
     );
-  };
+  }, [sortState.field, sortState.order]);
 
-  // 确保liveData是有效的
-  const onlineNodes = liveData && liveData.online ? liveData.online : [];
-
-  const getNodeData = (uuid: string): Record => {
-    const defaultLive = {
-      cpu: { usage: 0 },
-      ram: { used: 0 },
-      disk: { used: 0 },
-      network: { up: 0, down: 0, totalUp: 0, totalDown: 0 },
-      uptime: 0,
-    } as Record;
-
-    return liveData && liveData.data
-      ? liveData.data[uuid] || defaultLive
-      : defaultLive;
-  };
+  const getNodeData = useCallback(
+    (uuid: string): Record => liveData.data[uuid] || DEFAULT_TABLE_LIVE,
+    [liveData.data],
+  );
 
   // 排序节点函数
-  const sortedNodes = [...nodes].sort((a, b) => {
-    const aOnline = onlineNodes.includes(a.uuid);
-    const bOnline = onlineNodes.includes(b.uuid);
+  const sortedNodes = useMemo(() => [...nodes].sort((a, b) => {
+    const aOnline = onlineSet.has(a.uuid);
+    const bOnline = onlineSet.has(b.uuid);
     const aData = getNodeData(a.uuid);
     const bData = getNodeData(b.uuid);
 
@@ -135,8 +138,7 @@ const NodeTable: React.FC<NodeTableProps> = ({ nodes, liveData }) => {
       if (offlineServerPosition === "First") {
         if (!aOnline && bOnline) return -1;
         if (aOnline && !bOnline) return 1;
-      } else if (offlineServerPosition === "Keep") {
-      } else {
+      } else if (offlineServerPosition !== "Keep") {
         if (aOnline && !bOnline) return -1;
         if (!aOnline && bOnline) return 1;
       }
@@ -146,19 +148,23 @@ const NodeTable: React.FC<NodeTableProps> = ({ nodes, liveData }) => {
     // 自定义排序逻辑
     let comparison = 0;
     switch (sortState.field) {
-      case "name":
+      case "name": {
         comparison = a.name.localeCompare(b.name);
         break;
-      case "os":
+      }
+      case "os": {
         comparison = a.os.localeCompare(b.os);
         break;
-      case "status":
+      }
+      case "status": {
         comparison = Number(bOnline) - Number(aOnline); // 在线状态：true > false
         break;
-      case "cpu":
+      }
+      case "cpu": {
         comparison = aData.cpu.usage - bData.cpu.usage;
         break;
-      case "ram":
+      }
+      case "ram": {
         const aRamPercent = a.mem_total
           ? (aData.ram.used / a.mem_total) * 100
           : 0;
@@ -167,7 +173,8 @@ const NodeTable: React.FC<NodeTableProps> = ({ nodes, liveData }) => {
           : 0;
         comparison = aRamPercent - bRamPercent;
         break;
-      case "disk":
+      }
+      case "disk": {
         const aDiskPercent = a.disk_total
           ? (aData.disk.used / a.disk_total) * 100
           : 0;
@@ -176,32 +183,38 @@ const NodeTable: React.FC<NodeTableProps> = ({ nodes, liveData }) => {
           : 0;
         comparison = aDiskPercent - bDiskPercent;
         break;
-      case "price":
+      }
+      case "price": {
         comparison = a.price - b.price;
         break;
-      case "networkUp":
+      }
+      case "networkUp": {
         comparison = aData.network.up - bData.network.up;
         break;
-      case "networkDown":
+      }
+      case "networkDown": {
         comparison = aData.network.down - bData.network.down;
         break;
-      case "totalUp":
+      }
+      case "totalUp": {
         comparison = aData.network.totalUp - bData.network.totalUp;
         break;
-      case "totalDown":
+      }
+      case "totalDown": {
         comparison = aData.network.totalDown - bData.network.totalDown;
         break;
+      }
       default:
         comparison = 0;
     }
 
     return sortState.order === "desc" ? -comparison : comparison;
-  });
+  }), [nodes, onlineSet, getNodeData, offlineServerPosition, sortState]);
 
   return (
-    <div className="mx-4 overflow-x-auto rounded-xl node-table-container">
+    <div className="km-node-table mx-4 overflow-x-auto rounded-xl node-table-container">
       <Table>
-        <TableHeader>
+        <TableHeader className="km-node-table-header">
           <TableRow>
             <TableHead className="w-[24px]"></TableHead>
             <TableHead
@@ -230,7 +243,7 @@ const NodeTable: React.FC<NodeTableProps> = ({ nodes, liveData }) => {
               title={t("nodeCard.sortTooltip")}
             >
               <Flex align="center" gap="1">
-                {t("nodeCard.status")}
+                {t("common.status")}
                 {getSortIcon("status")}
               </Flex>
             </TableHead>
@@ -240,7 +253,7 @@ const NodeTable: React.FC<NodeTableProps> = ({ nodes, liveData }) => {
               title={t("nodeCard.sortTooltip")}
             >
               <Flex align="center" gap="1">
-                {t("nodeCard.cpu")}
+                {t("admin.nodeDetail.cpu")}
                 {getSortIcon("cpu")}
               </Flex>
             </TableHead>
@@ -270,7 +283,7 @@ const NodeTable: React.FC<NodeTableProps> = ({ nodes, liveData }) => {
               title={t("nodeCard.sortTooltip")}
             >
               <Flex align="center" gap="1">
-                {t("nodeCard.price")}
+                {t("admin.nodeTable.price")}
                 {getSortIcon("price")}
               </Flex>
             </TableHead>
@@ -318,7 +331,7 @@ const NodeTable: React.FC<NodeTableProps> = ({ nodes, liveData }) => {
         </TableHeader>
         <TableBody>
           {sortedNodes.map((node) => {
-            const isOnline = onlineNodes.includes(node.uuid);
+            const isOnline = onlineSet.has(node.uuid);
             const nodeData = getNodeData(node.uuid);
             const isExpanded = expandedRows.has(node.uuid);
 
@@ -332,7 +345,7 @@ const NodeTable: React.FC<NodeTableProps> = ({ nodes, liveData }) => {
             return (
               <React.Fragment key={node.uuid}>
                 <TableRow
-                  className="hover:bg-accent-2 transition-colors duration-200 table-row-hover"
+                  className="km-node-table-row hover:bg-accent-2 transition-colors duration-200 table-row-hover"
                   onClick={() => toggleRowExpansion(node.uuid)}
                 >
                   <TableCell>
@@ -473,10 +486,18 @@ interface ExpandedNodeDetailsProps {
   nodeData: Record;
 }
 
-const ExpandedNodeDetails: React.FC<ExpandedNodeDetailsProps> = ({ node }) => {
+const ExpandedNodeDetails: React.FC<ExpandedNodeDetailsProps> = ({
+  node,
+  nodeData,
+}) => {
   return (
     <div className="p-4 space-y-4">
-      <DetailsGrid gap="0" uuid={node.uuid} />
+      <DetailsGrid
+        gap="0"
+        uuid={node.uuid}
+        node={node}
+        liveRecord={nodeData}
+      />
       <div>
         <MiniPingChart hours={24} uuid={node.uuid} />
       </div>

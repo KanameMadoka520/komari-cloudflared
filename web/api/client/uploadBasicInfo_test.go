@@ -8,7 +8,7 @@ import (
 	"github.com/komari-monitor/komari/cmd/flags"
 	"github.com/komari-monitor/komari/database/dbcore"
 	"github.com/komari-monitor/komari/database/models"
-	"github.com/komari-monitor/komari/pkg/config"
+	"github.com/komari-monitor/komari/internal/config"
 	v2 "github.com/komari-monitor/komari/protocol/v2"
 	"github.com/komari-monitor/komari/utils/geoip"
 )
@@ -50,7 +50,7 @@ func TestV2BasicInfoFillsRegionFromGeoIP(t *testing.T) {
 	})
 
 	clientUUID := "client-v2-geoip"
-	now := models.FromTime(time.Now())
+	now := time.Now().UTC()
 	if err := db.Create(&models.Client{
 		UUID:      clientUUID,
 		Token:     "token-v2-geoip",

@@ -2,14 +2,15 @@ package notifier
 
 import (
 	"fmt"
-	"log/slog"
 	"math"
 	"strings"
 	"time"
 
 	"github.com/komari-monitor/komari/database/clients"
 	"github.com/komari-monitor/komari/database/models"
-	"github.com/komari-monitor/komari/pkg/config"
+	messageevent "github.com/komari-monitor/komari/database/models/messageEvent"
+	"github.com/komari-monitor/komari/internal/config"
+	logger "github.com/komari-monitor/komari/utils/log"
 	"github.com/komari-monitor/komari/utils/messageSender"
 	agent_runtime "github.com/komari-monitor/komari/web/agent"
 	cache "github.com/patrickmn/go-cache"
@@ -29,7 +30,7 @@ func CheckTraffic() {
 	}
 	cfg, err := config.GetAs[float64](config.TrafficLimitPercentageKey, 80.0)
 	if err != nil {
-		slog.Error("failed to get traffic limit percentage", "error", err)
+		logger.Error("notifier", "failed to get traffic limit percentage", "error", err)
 	}
 
 	if cfg <= 0 {
@@ -95,10 +96,10 @@ func CheckTraffic() {
 
 			msg := fmt.Sprintf("used %d%% (%s / %s), type=%s", curStep, humanBytes(used), humanBytes(c.TrafficLimit), strings.ToLower(c.TrafficLimitType))
 			// 发送通知（内部会检查 NotificationEnabled）
-			_ = messageSender.SendEvent(models.EventMessage{
-				Event:   "Traffic",
+			_ = messageSender.SendNotification(models.EventMessage{
+				Event:   messageevent.Traffic,
 				Clients: []models.Client{c},
-				Time:    time.Now(),
+				Time:    time.Now().UTC(),
 				Emoji:   "⚠️",
 				Message: msg,
 			})

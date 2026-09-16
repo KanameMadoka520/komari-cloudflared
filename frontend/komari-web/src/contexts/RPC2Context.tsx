@@ -1,6 +1,14 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { RPC2Client } from "../lib/rpc2";
 import type { RPC2ConnectionStateType } from "../types/rpc2";
+import i18n from "../i18n/config";
 
 interface RPC2ContextType {
   client: RPC2Client;
@@ -47,49 +55,57 @@ export const RPC2Provider: React.FC<{ children: React.ReactNode }> = ({ children
         setConnectionState(client.state);
         console.log(`RPC2 重连尝试 ${attempt}`);
       },
-      onMessage: (data) => {
-        // 可以在这里处理全局消息
-        console.debug("RPC2 消息:", data);
-      },
     });
+
+    // The singleton may have been explicitly disconnected during a previous
+    // StrictMode pass or route unmount. Reattach it when a provider mounts.
+    if (client.state === "disconnected") {
+      client.connect().catch((err) => {
+        setError(err instanceof Error ? err.message : i18n.t("rpc2.connection_failed"));
+        setConnectionState(client.state);
+      });
+    }
 
     // 清理函数
     return () => {
       __rpc2_refcount = Math.max(0, __rpc2_refcount - 1);
       // 只有在最后一个 Provider 卸载时才断开连接
       if (__rpc2_refcount === 0) {
+        client.clearEventListeners();
         client.disconnect();
       }
     };
   }, [client]);
 
-  const connect = async () => {
+  const connect = useCallback(async () => {
     try {
       setError(null);
       await client.connect();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "连接失败");
+      setError(err instanceof Error ? err.message : i18n.t("rpc2.connection_failed"));
       throw err;
     }
-  };
+  }, [client]);
 
-  const disconnect = () => {
+  const disconnect = useCallback(() => {
     client.disconnect();
-  };
+  }, [client]);
 
   const isConnected = connectionState === "connected";
+  const contextValue = useMemo(
+    () => ({
+      client,
+      connectionState,
+      isConnected,
+      error,
+      connect,
+      disconnect,
+    }),
+    [client, connectionState, isConnected, error, connect, disconnect],
+  );
 
   return (
-    <RPC2Context.Provider
-      value={{
-        client,
-        connectionState,
-        isConnected,
-        error,
-        connect,
-        disconnect
-      }}
-    >
+    <RPC2Context.Provider value={contextValue}>
       {children}
     </RPC2Context.Provider>
   );
@@ -98,7 +114,7 @@ export const RPC2Provider: React.FC<{ children: React.ReactNode }> = ({ children
 export const useRPC2 = (): RPC2ContextType => {
   const context = useContext(RPC2Context);
   if (context === undefined) {
-    throw new Error("useRPC2 必须在 RPC2Provider 内使用");
+    throw new Error(i18n.t("rpc2.provider_required"));
   }
   return context;
 };

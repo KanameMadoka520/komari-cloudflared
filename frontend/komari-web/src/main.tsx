@@ -25,7 +25,14 @@ import { PWAUpdatePrompt } from "./components/PWAUpdatePrompt";
 import { OfflineIndicator } from "./components/OfflineIndicator";
 import { Toaster } from "./components/ui/sonner";
 import { RPC2Provider } from "./contexts/RPC2Context";
+import { NodeListProvider } from "./contexts/NodeListContext";
 const App = () => {
+  const restrictedPath = window.location.pathname.replace(/\/$/, "");
+  const isRestrictedGuideRoute = [
+    "/admin/database-migration",
+    "/install",
+    "/database-recovery",
+  ].includes(restrictedPath);
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tempKey = params.get("temp_key");
@@ -52,6 +59,11 @@ const App = () => {
   // Use the system theme hook to resolve "system" to actual theme
   const resolvedAppearance = useSystemTheme(appearance);
 
+  React.useEffect(() => {
+    const isDark = resolvedAppearance === "dark";
+    document.documentElement.classList.toggle("dark", isDark);
+  }, [resolvedAppearance]);
+
   const themeContextValue = useMemo(
     () => ({
       appearance,
@@ -75,15 +87,24 @@ const App = () => {
             minHeight: "100vh",
           }}
         >
-          <RPC2Provider>
-            <PublicInfoProvider>
+          {isRestrictedGuideRoute ? (
+            <>
               <Toaster />
-              <OfflineIndicator />
               {routing}
-              <PWAInstallPrompt />
-              <PWAUpdatePrompt />
-            </PublicInfoProvider>
-          </RPC2Provider>
+            </>
+          ) : (
+            <RPC2Provider>
+              <PublicInfoProvider>
+                <NodeListProvider>
+                  <Toaster />
+                  <OfflineIndicator />
+                  {routing}
+                  <PWAInstallPrompt />
+                  <PWAUpdatePrompt />
+                </NodeListProvider>
+              </PublicInfoProvider>
+            </RPC2Provider>
+          )}
         </Theme>
       </ThemeContext.Provider>
     </Suspense>
