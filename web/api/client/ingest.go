@@ -28,6 +28,12 @@ func ingestReportWithProtocol(uuid string, report v2.Report, markPresence, v2Cli
 	if err := clients.ReportVerify(report); err != nil {
 		return err
 	}
+	clients.TrafficMu.Lock()
+	defer clients.TrafficMu.Unlock()
+	report.UpdatedAt = time.Now().UTC()
+	if err := clients.ObserveTraffic(report); err != nil {
+		return err
+	}
 	savedReport, err := metricstore.WriteReport(context.Background(), report)
 	if err != nil {
 		return err

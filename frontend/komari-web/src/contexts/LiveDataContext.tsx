@@ -31,6 +31,8 @@ const sameLiveRecord = (left: LiveRecord, right: LiveRecord) =>
   left.network.down === right.network.down &&
   left.network.totalUp === right.network.totalUp &&
   left.network.totalDown === right.network.totalDown &&
+  left.network.cycleUp === right.network.cycleUp &&
+  left.network.cycleDown === right.network.cycleDown &&
   left.connections.tcp === right.connections.tcp &&
   left.connections.udp === right.connections.udp &&
   left.gpu?.average_usage === right.gpu?.average_usage &&
@@ -72,6 +74,8 @@ const mergeLiveData = (
         down: record.net_in ?? 0,
         totalUp: record.net_total_out ?? record.net_total_up ?? 0,
         totalDown: record.net_total_in ?? record.net_total_down ?? 0,
+        cycleUp: record.traffic_used_up ?? record.net_total_up ?? 0,
+        cycleDown: record.traffic_used_down ?? record.net_total_down ?? 0,
       },
       connections: {
         tcp: record.connections ?? 0,

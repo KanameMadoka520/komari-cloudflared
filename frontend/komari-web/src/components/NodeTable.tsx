@@ -197,11 +197,11 @@ const NodeTable: React.FC<NodeTableProps> = ({ nodes, liveData, onlineSet }) => 
         break;
       }
       case "totalUp": {
-        comparison = aData.network.totalUp - bData.network.totalUp;
+        comparison = (aData.network.cycleUp ?? aData.network.totalUp) - (bData.network.cycleUp ?? bData.network.totalUp);
         break;
       }
       case "totalDown": {
-        comparison = aData.network.totalDown - bData.network.totalDown;
+        comparison = (aData.network.cycleDown ?? aData.network.totalDown) - (bData.network.cycleDown ?? bData.network.totalDown);
         break;
       }
       default:
@@ -454,10 +454,10 @@ const NodeTable: React.FC<NodeTableProps> = ({ nodes, liveData, onlineSet }) => 
                     <label>↓{formatBytes(nodeData.network.down)}/s</label>
                   </TableCell>
                   <TableCell className="text-center min-w-[80px]">
-                    <label>↑{formatBytes(nodeData.network.totalUp)}</label>
+                    <label>↑{formatBytes((nodeData.network.cycleUp ?? nodeData.network.totalUp))}</label>
                   </TableCell>
                   <TableCell className="text-center min-w-[80px]">
-                    <label>↓{formatBytes(nodeData.network.totalDown)}</label>
+                    <label>↓{formatBytes((nodeData.network.cycleDown ?? nodeData.network.totalDown))}</label>
                   </TableCell>
                 </TableRow>
 

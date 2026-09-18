@@ -26,6 +26,8 @@ export type Record = {
     down: number;
     totalUp: number;
     totalDown: number;
+    cycleUp?: number;
+    cycleDown?: number;
   };
   connections: {
     tcp: number;

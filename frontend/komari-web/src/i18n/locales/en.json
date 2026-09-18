@@ -1597,5 +1597,21 @@
     "mode": "View Mode"
   },
   "warn_https": "The current connection is not HTTPS! Your sensitive data is at serious risk. Take immediate action to secure the connection! Copy may not available!",
-  "warn_websocket": "RPC2 request failed, please check the network connection or server status!"
+  "warn_websocket": "RPC2 request failed, please check the network connection or server status!",
+  "trafficCycle": {
+    "title": "Traffic cycle",
+    "description": "Reset or calibrate current usage for this node; new traffic continues accumulating. Homepage usage and alerts use this cycle. Historical charts and daily reports retain their original measurements.",
+    "current": "Current cycle usage",
+    "since": "Last reset / calibration",
+    "upload": "Current upload usage",
+    "download": "Current download usage",
+    "units": "Use B, GB, TB (decimal) or GiB, TiB (binary), for example 12.5 GB. Empty or invalid values cannot be saved.",
+    "invalid": "Enter a valid non-negative size, such as 12.5 GB or 10 GiB.",
+    "saved": "Traffic cycle updated",
+    "failed": "Failed to update traffic cycle",
+    "confirm": "Reset current upload and download usage for this node to zero now? Monitoring history is preserved.",
+    "confirmButton": "Confirm reset",
+    "reset": "Reset to zero",
+    "save": "Save current usage"
+  }
 }

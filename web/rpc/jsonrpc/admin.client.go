@@ -2,6 +2,7 @@ package jsonrpc
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/komari-monitor/komari/database/auditlog"
@@ -195,10 +196,12 @@ func currentTrafficCounters(ctx context.Context, uuid string) (int64, int64, err
 	if record, ok := latest[uuid]; ok {
 		return record.NetTotalUp, record.NetTotalDown, nil
 	}
-	return 0, 0, nil
+	return 0, 0, fmt.Errorf("no traffic counter available; wait for the agent to report before adjusting usage")
 }
 
 func adminGetClientTraffic(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+	clients.TrafficMu.Lock()
+	defer clients.TrafficMu.Unlock()
 	var params struct {
 		UUID string `json:"uuid"`
 	}
@@ -226,8 +229,13 @@ func adminGetClientTraffic(ctx context.Context, req *rpc.JsonRpcRequest) (any, *
 }
 
 func setClientTrafficCycle(ctx context.Context, uuid string, initialUp, initialDown int64) *rpc.JsonRpcError {
-	if uuid == "" || initialUp < 0 || initialDown < 0 {
+	clients.TrafficMu.Lock()
+	defer clients.TrafficMu.Unlock()
+	if uuid == "" || initialUp < 0 || initialDown < 0 || initialUp > 9007199254740991 || initialDown > 9007199254740991 {
 		return rpc.MakeError(rpc.InvalidParams, "UUID and traffic usage must be non-negative", nil)
+	}
+	if _, err := clients.GetClientByUUID(uuid); err != nil {
+		return rpc.MakeError(rpc.InvalidParams, "Client not found", nil)
 	}
 	rawUp, rawDown, err := currentTrafficCounters(ctx, uuid)
 	if err != nil {
@@ -257,13 +265,16 @@ func adminResetClientTraffic(ctx context.Context, req *rpc.JsonRpcRequest) (any,
 func adminSetClientTrafficUsage(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
 	var params struct {
 		UUID     string `json:"uuid"`
-		Upload   int64  `json:"upload"`
-		Download int64  `json:"download"`
+		Upload   *int64 `json:"upload"`
+		Download *int64 `json:"download"`
 	}
 	if err := req.BindParams(&params); err != nil {
 		return nil, rpc.MakeError(rpc.InvalidParams, "Invalid params", nil)
 	}
-	if rpcErr := setClientTrafficCycle(ctx, params.UUID, params.Upload, params.Download); rpcErr != nil {
+	if params.Upload == nil || params.Download == nil {
+		return nil, rpc.MakeError(rpc.InvalidParams, "upload and download are required", nil)
+	}
+	if rpcErr := setClientTrafficCycle(ctx, params.UUID, *params.Upload, *params.Download); rpcErr != nil {
 		return nil, rpcErr
 	}
 	actor, ip := auditActor(ctx)

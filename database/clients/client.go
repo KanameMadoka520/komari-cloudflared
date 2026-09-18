@@ -5,6 +5,7 @@ import (
 	"fmt"
 	logger "github.com/komari-monitor/komari/utils/log"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/komari-monitor/komari/database/dbcore"
@@ -25,6 +26,11 @@ func DeleteClient(clientUuid string) error {
 }
 
 func SaveClientInfo(update map[string]interface{}) error {
+	for key := range update {
+		if strings.HasPrefix(strings.ToLower(key), "traffic") && key != "traffic_limit" && key != "traffic_limit_type" {
+			return fmt.Errorf("traffic cycle fields must be changed through the traffic API")
+		}
+	}
 	db := dbcore.GetDBInstance()
 	clientUUID, ok := update["uuid"].(string)
 	if !ok || clientUUID == "" {
@@ -211,6 +217,11 @@ func GetAllClientBasicInfo() (clients []models.Client, err error) {
 }
 
 func SaveClient(updates map[string]interface{}) error {
+	for key := range updates {
+		if strings.HasPrefix(strings.ToLower(key), "traffic") && key != "traffic_limit" && key != "traffic_limit_type" {
+			return fmt.Errorf("traffic cycle fields must be changed through the traffic API")
+		}
+	}
 	db := dbcore.GetDBInstance()
 	clientUUID, ok := updates["uuid"].(string)
 	if !ok || clientUUID == "" {

@@ -65,12 +65,18 @@ func CheckTraffic() {
 		// 计算不同类型的使用值
 		effectiveUp, effectiveDown := clients.EffectiveTraffic(c, r.Network.TotalUp, r.Network.TotalDown)
 		used := computeUsedByType(strings.ToLower(c.TrafficLimitType), effectiveUp, effectiveDown)
+		key := "traffic:" + c.UUID
+		if c.TrafficResetAt != nil {
+			key += ":" + c.TrafficResetAt.Format(time.RFC3339Nano)
+		}
 		if used <= 0 {
+			trafficCache.Delete(key)
 			continue
 		}
 
 		pct := float64(used) / float64(c.TrafficLimit) * 100.0
 		if pct < startThreshold {
+			trafficCache.Delete(key)
 			continue
 		}
 
@@ -83,7 +89,6 @@ func CheckTraffic() {
 		// 	curStep = 100
 		// }
 
-		key := "traffic:" + c.UUID
 		last, _ := trafficCache.Get(key)
 		lastStep, _ := last.(int)
 
@@ -115,6 +120,9 @@ func computeUsedByType(t string, up, down int64) int64 {
 	case "down":
 		return down
 	case "sum":
+		if up > math.MaxInt64-down {
+			return math.MaxInt64
+		}
 		return up + down
 	case "min":
 		if up < down {

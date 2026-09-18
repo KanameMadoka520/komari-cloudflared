@@ -73,8 +73,8 @@ const Index = () => {
       const record = liveData.data[node.uuid];
       if (!record) continue;
 
-      totalUp += record.network.totalUp || 0;
-      totalDown += record.network.totalDown || 0;
+      totalUp += (record.network.cycleUp ?? record.network.totalUp) || 0;
+      totalDown += (record.network.cycleDown ?? record.network.totalDown) || 0;
       speedUp += record.network.up || 0;
       speedDown += record.network.down || 0;
     }

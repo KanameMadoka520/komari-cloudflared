@@ -11,6 +11,9 @@ func TestCloudflaredRoutesRequireAdministrator(t *testing.T) {
 	registerAdminRoutes(r)
 	for _, route := range []struct{ method, path string }{
 		{"GET", "/api/admin/settings/cloudflared"},
+		{"GET", "/api/admin/client/node/traffic"},
+		{"POST", "/api/admin/client/node/traffic/reset"},
+		{"POST", "/api/admin/client/node/traffic/set"},
 		{"POST", "/api/admin/settings/cloudflared/token"},
 		{"POST", "/api/admin/settings/cloudflared/start"},
 		{"POST", "/api/admin/settings/cloudflared/stop"},

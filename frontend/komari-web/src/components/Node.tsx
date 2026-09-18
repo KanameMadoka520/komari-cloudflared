@@ -67,9 +67,9 @@ const Node = React.memo(
 
   const uploadSpeed = formatBytes(liveData.network.up);
   const downloadSpeed = formatBytes(liveData.network.down);
-  const totalUpload = formatBytes(liveData.network.totalUp);
-  const totalDownload = formatBytes(liveData.network.totalDown);
-  //const totalTraffic = formatBytes(liveData.network.totalUp + liveData.network.totalDown);
+  const totalUpload = formatBytes((liveData.network.cycleUp ?? liveData.network.totalUp));
+  const totalDownload = formatBytes((liveData.network.cycleDown ?? liveData.network.totalDown));
+  //const totalTraffic = formatBytes((liveData.network.cycleUp ?? liveData.network.totalUp) + (liveData.network.cycleDown ?? liveData.network.totalDown));
   return (
     <Card
       style={{
@@ -195,8 +195,8 @@ const Node = React.memo(
               <UsageBar
                 label={t("nodeCard.totalTraffic")}
                 value={getTrafficPercentage(
-                  liveData.network.totalUp,
-                  liveData.network.totalDown,
+                  (liveData.network.cycleUp ?? liveData.network.totalUp),
+                  (liveData.network.cycleDown ?? liveData.network.totalDown),
                   basic.traffic_limit,
                   basic.traffic_limit_type ?? "sum",
                 )}
@@ -253,8 +253,8 @@ const Node = React.memo(
               label={`${basic.traffic_limit_type && basic.traffic_limit_type.charAt(0).toUpperCase() + basic.traffic_limit_type.slice(1)}(${formatBytes(basic.traffic_limit)})`}
               max={Infinity}
               value={getTrafficPercentage(
-                liveData.network.totalUp,
-                liveData.network.totalDown,
+                (liveData.network.cycleUp ?? liveData.network.totalUp),
+                (liveData.network.cycleDown ?? liveData.network.totalDown),
                 basic.traffic_limit,
                 basic.traffic_limit_type ?? "sum",
               )}

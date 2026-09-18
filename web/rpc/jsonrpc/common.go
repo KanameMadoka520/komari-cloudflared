@@ -347,6 +347,8 @@ func getNodesLatestStatus(ctx context.Context, req *rpc.JsonRpcRequest) (any, *r
 		NetOut          int64               `json:"net_out"`
 		NetTotalUp      int64               `json:"net_total_up"`
 		NetTotalDown    int64               `json:"net_total_down"`
+		TrafficUsedUp   int64               `json:"traffic_used_up"`
+		TrafficUsedDown int64               `json:"traffic_used_down"`
 		Process         int                 `json:"process"`
 		Connections     int                 `json:"connections"`
 		ConnectionsUdp  int                 `json:"connections_udp"`
@@ -359,7 +361,10 @@ func getNodesLatestStatus(ctx context.Context, req *rpc.JsonRpcRequest) (any, *r
 
 	// 预取所有 ping 任务
 	pingTasks, _ := tasks.GetAllPingTasks()
-	clientInfo, _ := clients.GetAllClientBasicInfo()
+	clientInfo, trafficErr := clients.GetAllClientBasicInfo()
+	if trafficErr != nil {
+		return nil, rpc.MakeError(rpc.InternalError, "Failed to read traffic usage", nil)
+	}
 	clientByUUID := make(map[string]models.Client, len(clientInfo))
 	for _, client := range clientInfo {
 		clientByUUID[client.UUID] = client
@@ -375,30 +380,32 @@ func getNodesLatestStatus(ctx context.Context, req *rpc.JsonRpcRequest) (any, *r
 			effectiveUp, effectiveDown = clients.EffectiveTraffic(client, effectiveUp, effectiveDown)
 		}
 		rl := recordLike{
-			Client:         uuid,
-			Time:           rep.UpdatedAt,
-			Cpu:            float32(rep.CPU.Usage),
-			Gpu:            gpuUsageFromReport(rep),
-			Ram:            rep.Ram.Used,
-			RamTotal:       rep.Ram.Total,
-			Swap:           rep.Swap.Used,
-			SwapTotal:      rep.Swap.Total,
-			Load:           float32(rep.Load.Load1),
-			Load5:          float32(rep.Load.Load5),
-			Load15:         float32(rep.Load.Load15),
-			Temp:           0,
-			Disk:           rep.Disk.Used,
-			DiskTotal:      rep.Disk.Total,
-			NetIn:          rep.Network.Down,
-			NetOut:         rep.Network.Up,
-			NetTotalUp:     effectiveUp,
-			NetTotalDown:   effectiveDown,
-			Process:        rep.Process,
-			Connections:    rep.Connections.TCP + rep.Connections.UDP,
-			ConnectionsUdp: rep.Connections.UDP,
-			Online:         onlineSet[uuid],
-			Uptime:         rep.Uptime,
-			Ping:           stats,
+			Client:          uuid,
+			Time:            rep.UpdatedAt,
+			Cpu:             float32(rep.CPU.Usage),
+			Gpu:             gpuUsageFromReport(rep),
+			Ram:             rep.Ram.Used,
+			RamTotal:        rep.Ram.Total,
+			Swap:            rep.Swap.Used,
+			SwapTotal:       rep.Swap.Total,
+			Load:            float32(rep.Load.Load1),
+			Load5:           float32(rep.Load.Load5),
+			Load15:          float32(rep.Load.Load15),
+			Temp:            0,
+			Disk:            rep.Disk.Used,
+			DiskTotal:       rep.Disk.Total,
+			NetIn:           rep.Network.Down,
+			NetOut:          rep.Network.Up,
+			NetTotalUp:      rep.Network.TotalUp,
+			TrafficUsedUp:   effectiveUp,
+			NetTotalDown:    rep.Network.TotalDown,
+			TrafficUsedDown: effectiveDown,
+			Process:         rep.Process,
+			Connections:     rep.Connections.TCP + rep.Connections.UDP,
+			ConnectionsUdp:  rep.Connections.UDP,
+			Online:          onlineSet[uuid],
+			Uptime:          rep.Uptime,
+			Ping:            stats,
 		}
 		if rep.GPU != nil {
 			rl.GpuCount = rep.GPU.Count

@@ -49,6 +49,9 @@ type Client struct {
 	TrafficResetDown   int64      `json:"-" gorm:"type:bigint;default:0"`
 	TrafficInitialUp   int64      `json:"traffic_initial_up" gorm:"type:bigint;default:0"`
 	TrafficInitialDown int64      `json:"traffic_initial_down" gorm:"type:bigint;default:0"`
+	TrafficUsedUp      int64      `json:"-" gorm:"default:0"`
+	TrafficUsedDown    int64      `json:"-" gorm:"default:0"`
+	TrafficObservedAt  *time.Time `json:"-"`
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
 }

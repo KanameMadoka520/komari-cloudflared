@@ -1,3 +1,4 @@
+import TrafficCycleEditor from "@/components/admin/TrafficCycleEditor";
 import {
   quotePowerShellArg,
   quoteShellArg,
@@ -2360,9 +2361,6 @@ function EditButton({ node }: { node: NodeDetail }) {
   const [saving, setSaving] = useState(false);
   const [traffic_limit, setTrafficLimit] = useState(0);
   const [traffic_limit_type, setTrafficLimitType] = useState("sum");
-  const [trafficUpload, setTrafficUpload] = useState("0 B");
-  const [trafficDownload, setTrafficDownload] = useState("0 B");
-  const [trafficBusy, setTrafficBusy] = useState(false);
 
   React.useEffect(() => {
     setHidden(node.hidden);
@@ -2370,68 +2368,6 @@ function EditButton({ node }: { node: NodeDetail }) {
     setTrafficLimitType(node.traffic_limit_type || "sum");
   }, [node.hidden, node.traffic_limit, node.traffic_limit_type]);
 
-  React.useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    fetch(`/api/admin/client/${node.uuid}/traffic`)
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return response.json();
-      })
-      .then((payload) => {
-        if (cancelled) return;
-        const data = payload?.data ?? payload;
-        setTrafficUpload(formatBytes(Number(data?.upload) || 0));
-        setTrafficDownload(formatBytes(Number(data?.download) || 0));
-      })
-      .catch((error) => console.error("Error fetching traffic cycle:", error));
-    return () => {
-      cancelled = true;
-    };
-  }, [open, node.uuid]);
-
-  const resetTraffic = async () => {
-    if (!window.confirm(t("admin.nodeEdit.trafficResetConfirm", "确定将此节点的当前流量周期重置为 0 吗？监控历史不会删除。"))) return;
-    try {
-      setTrafficBusy(true);
-      const response = await fetch(`/api/admin/client/${node.uuid}/traffic/reset`, { method: "POST" });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      setTrafficUpload("0 B");
-      setTrafficDownload("0 B");
-      refresh();
-      toast.success(t("admin.nodeEdit.trafficResetSuccess", "流量周期已重置"));
-    } catch (error) {
-      console.error("Error resetting traffic cycle:", error);
-      toast.error(t("admin.nodeEdit.trafficUpdateFailed", "流量周期更新失败"));
-    } finally {
-      setTrafficBusy(false);
-    }
-  };
-
-  const setTrafficUsage = async () => {
-    const upload = stringToBytes(trafficUpload);
-    const download = stringToBytes(trafficDownload);
-    if (!Number.isSafeInteger(upload) || !Number.isSafeInteger(download) || upload < 0 || download < 0) {
-      toast.error(t("admin.nodeEdit.trafficInvalid", "请输入有效的非负流量值"));
-      return;
-    }
-    try {
-      setTrafficBusy(true);
-      const response = await fetch(`/api/admin/client/${node.uuid}/traffic/set`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ upload, download }),
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      refresh();
-      toast.success(t("admin.nodeEdit.trafficSetSuccess", "流量进度已更新"));
-    } catch (error) {
-      console.error("Error setting traffic cycle:", error);
-      toast.error(t("admin.nodeEdit.trafficUpdateFailed", "流量周期更新失败"));
-    } finally {
-      setTrafficBusy(false);
-    }
-  };
 
   const save = async () => {
     try {
@@ -2595,35 +2531,7 @@ function EditButton({ node }: { node: NodeDetail }) {
               }}
             ></SettingCardShortTextInput>
           </SettingCardCollapse>
-          <SettingCardCollapse title={t("admin.nodeEdit.trafficCycle", "流量周期") }>
-            <Text size="1" color="gray">
-              {t("admin.nodeEdit.trafficCycleDescription", "用于流量阈值和节点卡片的当前周期进度；不会删除监控历史。")}
-            </Text>
-            <Flex direction="column" gap="2" mt="2">
-              <Flex gap="2">
-                <TextField.Root
-                  value={trafficUpload}
-                  onChange={(event) => setTrafficUpload(event.currentTarget.value)}
-                  placeholder="上传，例如 12.5 GB"
-                  aria-label={t("admin.nodeEdit.trafficUpload", "当前上传量")}
-                />
-                <TextField.Root
-                  value={trafficDownload}
-                  onChange={(event) => setTrafficDownload(event.currentTarget.value)}
-                  placeholder="下载，例如 80 GB"
-                  aria-label={t("admin.nodeEdit.trafficDownload", "当前下载量")}
-                />
-              </Flex>
-              <Flex gap="2" justify="end">
-                <Button type="button" variant="soft" color="red" disabled={trafficBusy} onClick={resetTraffic}>
-                  {t("admin.nodeEdit.trafficReset", "重置为 0")}
-                </Button>
-                <Button type="button" variant="soft" disabled={trafficBusy} onClick={setTrafficUsage}>
-                  {t("admin.nodeEdit.trafficSet", "保存当前进度")}
-                </Button>
-              </Flex>
-            </Flex>
-          </SettingCardCollapse>
+          <TrafficCycleEditor uuid={node.uuid} open={open} onSaved={refresh} />
         </div>
         <Flex gap="2" justify={"end"} className="mt-4">
           <Button
