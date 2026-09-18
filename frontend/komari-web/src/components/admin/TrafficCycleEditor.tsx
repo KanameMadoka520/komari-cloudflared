@@ -45,6 +45,9 @@ export default function TrafficCycleEditor({ uuid, open, onSaved }: { uuid: stri
     setTotal(`${data.total} B`);
     setUpload(data.total_mode ? "" : `${data.upload} B`);
     setDownload(data.total_mode ? "" : `${data.download} B`);
+    // Preserve an existing split calibration; new/legacy nodes start in the
+    // provider-total mode so the common billing workflow is one field.
+    setMode(data.total_mode || !data.reset_at ? "total" : "split");
   };
   useEffect(() => {
     setUsage(null); setError(""); setConfirmReset(false); setMode("total");
