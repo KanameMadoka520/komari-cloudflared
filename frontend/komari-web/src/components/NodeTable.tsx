@@ -307,6 +307,7 @@ const NodeTable: React.FC<NodeTableProps> = ({ nodes, liveData, onlineSet }) => 
                 {getSortIcon("networkDown")}
               </Flex>
             </TableHead>
+            <TableHead className="text-center min-w-[100px]">{t("trafficCycle.usedTotal")}</TableHead>
             <TableHead
               className="cursor-pointer hover:bg-accent-2 select-none text-center min-w-[80px]"
               onClick={handleSort("totalUp")}
@@ -453,18 +454,23 @@ const NodeTable: React.FC<NodeTableProps> = ({ nodes, liveData, onlineSet }) => 
                   <TableCell className="text-center min-w-[80px]">
                     <label>↓{formatBytes(nodeData.network.down)}/s</label>
                   </TableCell>
+                  <TableCell className="text-center min-w-[100px]">
+                    {formatBytes(nodeData.network.cycleTotal ?? (nodeData.network.totalUp + nodeData.network.totalDown))}
+                  </TableCell>
                   <TableCell className="text-center min-w-[80px]">
                     <label>↑{formatBytes((nodeData.network.cycleUp ?? nodeData.network.totalUp))}</label>
+                    {nodeData.network.totalMode && <div className="text-xs text-muted-foreground">{t("trafficCycle.sinceCalibration")}</div>}
                   </TableCell>
                   <TableCell className="text-center min-w-[80px]">
                     <label>↓{formatBytes((nodeData.network.cycleDown ?? nodeData.network.totalDown))}</label>
+                    {nodeData.network.totalMode && <div className="text-xs text-muted-foreground">{t("trafficCycle.sinceCalibration")}</div>}
                   </TableCell>
                 </TableRow>
 
                 {/* 展开的详细信息行 */}
                 {isExpanded && (
                   <TableRow className="expanded-row">
-                    <TableCell colSpan={12} className="bg-accent-1">
+                    <TableCell colSpan={13} className="bg-accent-1">
                       <div className="expand-content">
                         <ExpandedNodeDetails node={node} nodeData={nodeData} />
                       </div>

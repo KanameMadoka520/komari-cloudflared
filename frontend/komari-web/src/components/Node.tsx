@@ -69,7 +69,13 @@ const Node = React.memo(
   const downloadSpeed = formatBytes(liveData.network.down);
   const totalUpload = formatBytes((liveData.network.cycleUp ?? liveData.network.totalUp));
   const totalDownload = formatBytes((liveData.network.cycleDown ?? liveData.network.totalDown));
-  //const totalTraffic = formatBytes((liveData.network.cycleUp ?? liveData.network.totalUp) + (liveData.network.cycleDown ?? liveData.network.totalDown));
+  const trafficText = liveData.network.totalMode
+    ? `${t("trafficCycle.usedTotal")}: ${formatBytes(liveData.network.cycleTotal ?? 0)}`
+    : `↑ ${totalUpload} ↓ ${totalDownload}`;
+  const trafficPercent = liveData.network.cycleTotal !== undefined && basic.traffic_limit > 0
+    ? liveData.network.cycleTotal / basic.traffic_limit * 100
+    : getTrafficPercentage(liveData.network.cycleUp ?? liveData.network.totalUp,
+        liveData.network.cycleDown ?? liveData.network.totalDown, basic.traffic_limit, basic.traffic_limit_type ?? "sum");
   return (
     <Card
       style={{
@@ -194,17 +200,12 @@ const Node = React.memo(
             <Flex justify="between" hidden={isMobile} direction="column">
               <UsageBar
                 label={t("nodeCard.totalTraffic")}
-                value={getTrafficPercentage(
-                  (liveData.network.cycleUp ?? liveData.network.totalUp),
-                  (liveData.network.cycleDown ?? liveData.network.totalDown),
-                  basic.traffic_limit,
-                  basic.traffic_limit_type ?? "sum",
-                )}
+                value={trafficPercent}
                 max={Infinity}
               />
               <Flex wrap="nowrap" justify="between">
                 <Text size="1" className="md:block hidden" color="gray">
-                  ↑ {totalUpload} ↓ {totalDownload}
+                  {trafficText}
                 </Text>
                 <Text size="1" className="md:block hidden" color="gray">
                   {basic.traffic_limit_type &&
@@ -220,7 +221,7 @@ const Node = React.memo(
                 {t("nodeCard.totalTraffic")}
               </Text>
               <Text size="2">
-                ↑ {totalUpload} ↓ {totalDownload}
+                {trafficText}
               </Text>
             </Flex>
           )}
@@ -244,7 +245,7 @@ const Node = React.memo(
             <Text size="2">{t("nodeCard.totalTraffic")}</Text>
             <Flex direction="column">
               <Text size="2">
-                ↑ {totalUpload} ↓ {totalDownload}
+                {trafficText}
               </Text>
             </Flex>
           </Flex>
@@ -252,12 +253,7 @@ const Node = React.memo(
             <UsageBar
               label={`${basic.traffic_limit_type && basic.traffic_limit_type.charAt(0).toUpperCase() + basic.traffic_limit_type.slice(1)}(${formatBytes(basic.traffic_limit)})`}
               max={Infinity}
-              value={getTrafficPercentage(
-                (liveData.network.cycleUp ?? liveData.network.totalUp),
-                (liveData.network.cycleDown ?? liveData.network.totalDown),
-                basic.traffic_limit,
-                basic.traffic_limit_type ?? "sum",
-              )}
+              value={trafficPercent}
             />
           )}
           <Flex justify="between" hidden={isMobile}>

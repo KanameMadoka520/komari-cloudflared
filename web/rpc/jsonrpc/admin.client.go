@@ -7,6 +7,7 @@ import (
 
 	"github.com/komari-monitor/komari/database/auditlog"
 	"github.com/komari-monitor/komari/database/clients"
+	"github.com/komari-monitor/komari/database/models"
 	"github.com/komari-monitor/komari/database/records"
 	"github.com/komari-monitor/komari/internal/metricstore"
 	"github.com/komari-monitor/komari/pkg/rpc"
@@ -72,7 +73,7 @@ func init() {
 		Name:    "admin:getClientTraffic",
 		Summary: "Get a client's current traffic-cycle usage",
 		Params:  []rpc.ParamMeta{{Name: "uuid", Type: "string", Required: true, Description: "Client UUID"}},
-		Returns: "{ upload: number, download: number, raw_upload: number, raw_download: number }",
+		Returns: "{ upload: number, download: number, total: number, total_mode: boolean, billing_type: string, reset_at: string, raw_upload: number, raw_download: number }",
 	})
 	RegisterWithGroupAndMeta("resetClientTraffic", rpc.RoleAdmin, adminResetClientTraffic, &rpc.MethodMeta{
 		Name:    "admin:resetClientTraffic",
@@ -85,8 +86,9 @@ func init() {
 		Summary: "Start a traffic cycle with manually entered usage",
 		Params: []rpc.ParamMeta{
 			{Name: "uuid", Type: "string", Required: true, Description: "Client UUID"},
-			{Name: "upload", Type: "number", Required: true, Description: "Current upload usage in bytes"},
-			{Name: "download", Type: "number", Required: true, Description: "Current download usage in bytes"},
+			{Name: "total", Type: "number", Required: false, Description: "Provider usage in bytes; exclusive with upload/download"},
+			{Name: "upload", Type: "number", Required: false, Description: "Current upload usage in bytes; requires download"},
+			{Name: "download", Type: "number", Required: false, Description: "Current download usage in bytes; requires upload"},
 		},
 		Returns: "null",
 	})
@@ -216,35 +218,48 @@ func adminGetClientTraffic(ctx context.Context, req *rpc.JsonRpcRequest) (any, *
 	if err != nil {
 		return nil, rpc.MakeError(rpc.InternalError, "Failed to read traffic counters", err.Error())
 	}
-	usedUp, usedDown := clients.EffectiveTraffic(client, rawUp, rawDown)
-	return map[string]any{
-		"upload":           usedUp,
-		"download":         usedDown,
-		"raw_upload":       rawUp,
-		"raw_download":     rawDown,
-		"reset_at":         client.TrafficResetAt,
-		"initial_upload":   client.TrafficInitialUp,
-		"initial_download": client.TrafficInitialDown,
-	}, nil
+
+	return trafficUsage(client, rawUp, rawDown), nil
 }
 
-func setClientTrafficCycle(ctx context.Context, uuid string, initialUp, initialDown int64) *rpc.JsonRpcError {
+func trafficUsage(client models.Client, rawUp, rawDown int64) map[string]any {
+	usedUp, usedDown := clients.EffectiveTraffic(client, rawUp, rawDown)
+	return map[string]any{
+		"upload": usedUp, "download": usedDown,
+		"total":        clients.EffectiveTrafficTotal(client, rawUp, rawDown),
+		"total_mode":   client.TrafficInitialTotal != nil,
+		"billing_type": client.TrafficLimitType,
+		"raw_upload":   rawUp, "raw_download": rawDown,
+		"reset_at":       client.TrafficResetAt,
+		"initial_upload": client.TrafficInitialUp, "initial_download": client.TrafficInitialDown,
+		"initial_total": client.TrafficInitialTotal,
+	}
+}
+
+func setClientTrafficCycle(ctx context.Context, uuid string, initialUp, initialDown int64, total *int64) (any, *rpc.JsonRpcError) {
 	clients.TrafficMu.Lock()
 	defer clients.TrafficMu.Unlock()
-	if uuid == "" || initialUp < 0 || initialDown < 0 || initialUp > 9007199254740991 || initialDown > 9007199254740991 {
-		return rpc.MakeError(rpc.InvalidParams, "UUID and traffic usage must be non-negative", nil)
+	if uuid == "" || initialUp < 0 || initialDown < 0 || initialUp > 9007199254740991 || initialDown > 9007199254740991 ||
+		(total != nil && (*total < 0 || *total > 9007199254740991)) {
+		return nil, rpc.MakeError(rpc.InvalidParams, "UUID is required; usage must be a non-negative safe integer", nil)
 	}
-	if _, err := clients.GetClientByUUID(uuid); err != nil {
-		return rpc.MakeError(rpc.InvalidParams, "Client not found", nil)
+	client, err := clients.GetClientByUUID(uuid)
+	if err != nil {
+		return nil, rpc.MakeError(rpc.InvalidParams, "Client not found", nil)
 	}
 	rawUp, rawDown, err := currentTrafficCounters(ctx, uuid)
 	if err != nil {
-		return rpc.MakeError(rpc.InternalError, "Failed to read traffic counters", err.Error())
+		return nil, rpc.MakeError(rpc.InternalError, "Failed to read traffic counters", err.Error())
 	}
-	if err := clients.SetTrafficBaseline(uuid, rawUp, rawDown, initialUp, initialDown, time.Now().UTC()); err != nil {
-		return rpc.MakeError(rpc.InternalError, "Failed to save traffic cycle", err.Error())
+	at := time.Now().UTC()
+	if err := clients.SetTrafficUsageBaseline(uuid, rawUp, rawDown, initialUp, initialDown, total, at); err != nil {
+		return nil, rpc.MakeError(rpc.InternalError, "Failed to save traffic cycle", err.Error())
 	}
-	return nil
+	client.TrafficResetAt, client.TrafficObservedAt = &at, &at
+	client.TrafficInitialUp, client.TrafficInitialDown = initialUp, initialDown
+	client.TrafficUsedUp, client.TrafficUsedDown = initialUp, initialDown
+	client.TrafficInitialTotal = total
+	return trafficUsage(client, rawUp, rawDown), nil
 }
 
 func adminResetClientTraffic(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
@@ -254,12 +269,13 @@ func adminResetClientTraffic(ctx context.Context, req *rpc.JsonRpcRequest) (any,
 	if err := req.BindParams(&params); err != nil {
 		return nil, rpc.MakeError(rpc.InvalidParams, "Invalid params", nil)
 	}
-	if rpcErr := setClientTrafficCycle(ctx, params.UUID, 0, 0); rpcErr != nil {
+	result, rpcErr := setClientTrafficCycle(ctx, params.UUID, 0, 0, nil)
+	if rpcErr != nil {
 		return nil, rpcErr
 	}
 	actor, ip := auditActor(ctx)
 	auditlog.Log(ip, actor, "reset traffic cycle:"+params.UUID, "warn")
-	return nil, nil
+	return result, nil
 }
 
 func adminSetClientTrafficUsage(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
@@ -267,19 +283,37 @@ func adminSetClientTrafficUsage(ctx context.Context, req *rpc.JsonRpcRequest) (a
 		UUID     string `json:"uuid"`
 		Upload   *int64 `json:"upload"`
 		Download *int64 `json:"download"`
+		Total    *int64 `json:"total"`
 	}
 	if err := req.BindParams(&params); err != nil {
 		return nil, rpc.MakeError(rpc.InvalidParams, "Invalid params", nil)
 	}
-	if params.Upload == nil || params.Download == nil {
-		return nil, rpc.MakeError(rpc.InvalidParams, "upload and download are required", nil)
+	// Check presence as well as values: even null mixed fields are ambiguous.
+	var fields map[string]any
+	if err := req.BindParams(&fields); err != nil {
+		return nil, rpc.MakeError(rpc.InvalidParams, "Invalid params", nil)
 	}
-	if rpcErr := setClientTrafficCycle(ctx, params.UUID, *params.Upload, *params.Download); rpcErr != nil {
+	_, hasTotal := fields["total"]
+	_, hasUp := fields["upload"]
+	_, hasDown := fields["download"]
+	var up, down int64
+	if hasTotal {
+		if params.Total == nil || hasUp || hasDown {
+			return nil, rpc.MakeError(rpc.InvalidParams, "Provide total alone, or both upload and download", nil)
+		}
+	} else {
+		if params.Upload == nil || params.Download == nil {
+			return nil, rpc.MakeError(rpc.InvalidParams, "Provide total alone, or both upload and download", nil)
+		}
+		up, down = *params.Upload, *params.Download
+	}
+	result, rpcErr := setClientTrafficCycle(ctx, params.UUID, up, down, params.Total)
+	if rpcErr != nil {
 		return nil, rpcErr
 	}
 	actor, ip := auditActor(ctx)
 	auditlog.Log(ip, actor, "set traffic cycle:"+params.UUID, "warn")
-	return nil, nil
+	return result, nil
 }
 
 func adminGetClientToken(_ context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {

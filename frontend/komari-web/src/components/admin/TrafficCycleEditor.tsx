@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, Flex, Text, TextField } from "@radix-ui/themes";
+import { Button, Flex, SegmentedControl, Text, TextField } from "@radix-ui/themes";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { formatBytes } from "@/utils/unitHelper";
@@ -15,7 +15,7 @@ function parseUsage(input: string): number | null {
   return Number.isSafeInteger(bytes) && bytes >= 0 ? bytes : null;
 }
 
-type Usage = { upload: number; download: number; reset_at: string | null };
+type Usage = { upload: number; download: number; total: number; total_mode: boolean; billing_type: string; reset_at: string | null };
 
 async function request(uuid: string, action = "", values?: object): Promise<Usage> {
   const response = await fetch(`/api/admin/client/${encodeURIComponent(uuid)}/traffic${action}`, {
@@ -31,6 +31,8 @@ async function request(uuid: string, action = "", values?: object): Promise<Usag
 export default function TrafficCycleEditor({ uuid, open, onSaved }: { uuid: string; open: boolean; onSaved: () => void }) {
   const { t } = useTranslation();
   const [usage, setUsage] = useState<Usage | null>(null);
+  const [mode, setMode] = useState("total");
+  const [total, setTotal] = useState("");
   const [upload, setUpload] = useState("");
   const [download, setDownload] = useState("");
   const [busy, setBusy] = useState(false);
@@ -40,11 +42,12 @@ export default function TrafficCycleEditor({ uuid, open, onSaved }: { uuid: stri
     setUsage(data);
     // Keep exact bytes when opening/saving: rounded display values must never
     // silently change the accounting baseline.
-    setUpload(`${data.upload} B`);
-    setDownload(`${data.download} B`);
+    setTotal(`${data.total} B`);
+    setUpload(data.total_mode ? "" : `${data.upload} B`);
+    setDownload(data.total_mode ? "" : `${data.download} B`);
   };
   useEffect(() => {
-    setUsage(null); setError(""); setConfirmReset(false);
+    setUsage(null); setError(""); setConfirmReset(false); setMode("total");
     if (!open) return;
     let cancelled = false;
     request(uuid).then((data) => { if (!cancelled) apply(data); })
@@ -53,14 +56,15 @@ export default function TrafficCycleEditor({ uuid, open, onSaved }: { uuid: stri
   }, [open, uuid]);
 
   const save = async (reset: boolean) => {
-    const up = reset ? 0 : parseUsage(upload);
-    const down = reset ? 0 : parseUsage(download);
-    if (up === null || down === null) { setError(t("trafficCycle.invalid")); return; }
+    const up = reset || mode === "total" ? 0 : parseUsage(upload);
+    const down = reset || mode === "total" ? 0 : parseUsage(download);
+    const used = reset || mode === "split" ? 0 : parseUsage(total);
+    if (up === null || down === null || used === null) { setError(t("trafficCycle.invalid")); return; }
     setBusy(true); setError("");
     try {
-      await request(uuid, reset ? "/reset" : "/set", { upload: up, download: down });
-      // The write has succeeded, even if a subsequent refresh fails.
-      apply({ upload: up, download: down, reset_at: new Date().toISOString() });
+      const data = await request(uuid, reset ? "/reset" : "/set",
+        mode === "total" && !reset ? { total: used } : { upload: up, download: down });
+      apply(data);
       setConfirmReset(false); onSaved(); toast.success(t("trafficCycle.saved"));
     } catch (err) { setError(err instanceof Error ? err.message : t("trafficCycle.failed")); }
     finally { setBusy(false); }
@@ -68,10 +72,21 @@ export default function TrafficCycleEditor({ uuid, open, onSaved }: { uuid: stri
   return <SettingCardCollapse title={t("trafficCycle.title")}>
     <Flex direction="column" gap="3">
       <Text size="2" color="gray">{t("trafficCycle.description")}</Text>
-      {usage && <Text size="2">{t("trafficCycle.current")}: ↑ {formatBytes(usage.upload)} / ↓ {formatBytes(usage.download)}</Text>}
+      {usage && <Text size="2">{t("trafficCycle.current")}: {formatBytes(usage.total)}</Text>}
       {usage?.reset_at && <Text size="1" color="gray">{t("trafficCycle.since")}: {new Date(usage.reset_at).toLocaleString()}</Text>}
-      <label><Text size="2">{t("trafficCycle.upload")}</Text><TextField.Root aria-label={t("trafficCycle.upload")} value={upload} onChange={(e) => setUpload(e.target.value)} disabled={busy || !usage} placeholder="12.5 GB" /></label>
-      <label><Text size="2">{t("trafficCycle.download")}</Text><TextField.Root aria-label={t("trafficCycle.download")} value={download} onChange={(e) => setDownload(e.target.value)} disabled={busy || !usage} placeholder="80 GB" /></label>
+      {usage && <Text size="1" color="gray">{t("trafficCycle.billingRule", { rule: t(`trafficCycle.rules.${usage.billing_type || "max"}`, { defaultValue: usage.billing_type || "max" }) })}</Text>}
+      <SegmentedControl.Root value={mode} onValueChange={(value) => { setMode(value); setError(""); setConfirmReset(false); }} disabled={busy || !usage} aria-label={t("trafficCycle.entryMode")}>
+        <SegmentedControl.Item value="total">{t("trafficCycle.totalMode")}</SegmentedControl.Item>
+        <SegmentedControl.Item value="split">{t("trafficCycle.splitMode")}</SegmentedControl.Item>
+      </SegmentedControl.Root>
+      {mode === "total" ? <>
+        <label><Text size="2">{t("trafficCycle.total")}</Text><TextField.Root aria-label={t("trafficCycle.total")} value={total} onChange={(e) => setTotal(e.target.value)} disabled={busy || !usage} placeholder="120 GB" /></label>
+        <Text size="1" color="gray">{t("trafficCycle.totalHelp")}</Text>
+      </> : <>
+        {usage?.total_mode && <Text size="2" color="orange">{t("trafficCycle.splitHelp")}</Text>}
+        <label><Text size="2">{t("trafficCycle.upload")}</Text><TextField.Root aria-label={t("trafficCycle.upload")} value={upload} onChange={(e) => setUpload(e.target.value)} disabled={busy || !usage} placeholder="12.5 GB" /></label>
+        <label><Text size="2">{t("trafficCycle.download")}</Text><TextField.Root aria-label={t("trafficCycle.download")} value={download} onChange={(e) => setDownload(e.target.value)} disabled={busy || !usage} placeholder="80 GB" /></label>
+      </>}
       <Text size="1" color="gray">{t("trafficCycle.units")}</Text>
       {error && <Text role="alert" color="red" size="2">{error}</Text>}
       {confirmReset ? <Flex direction="column" gap="2">

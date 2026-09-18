@@ -44,16 +44,18 @@ type Client struct {
 	// agent continues reporting its lifetime counters; these fields let the
 	// administrator rebase the displayed and alerted usage without deleting
 	// monitoring history.
-	TrafficResetAt     *time.Time `json:"traffic_reset_at,omitempty"`
-	TrafficResetUp     int64      `json:"-" gorm:"type:bigint;default:0"`
-	TrafficResetDown   int64      `json:"-" gorm:"type:bigint;default:0"`
-	TrafficInitialUp   int64      `json:"traffic_initial_up" gorm:"type:bigint;default:0"`
-	TrafficInitialDown int64      `json:"traffic_initial_down" gorm:"type:bigint;default:0"`
-	TrafficUsedUp      int64      `json:"-" gorm:"default:0"`
-	TrafficUsedDown    int64      `json:"-" gorm:"default:0"`
-	TrafficObservedAt  *time.Time `json:"-"`
-	CreatedAt          time.Time  `json:"created_at"`
-	UpdatedAt          time.Time  `json:"updated_at"`
+	TrafficResetAt   *time.Time `json:"traffic_reset_at,omitempty"`
+	TrafficResetUp   int64      `json:"-" gorm:"type:bigint;default:0"`
+	TrafficResetDown int64      `json:"-" gorm:"type:bigint;default:0"`
+	// A non-nil total is a provider baseline with no invented directional split.
+	TrafficInitialTotal *int64     `json:"-" gorm:"type:bigint"`
+	TrafficInitialUp    int64      `json:"traffic_initial_up" gorm:"type:bigint;default:0"`
+	TrafficInitialDown  int64      `json:"traffic_initial_down" gorm:"type:bigint;default:0"`
+	TrafficUsedUp       int64      `json:"-" gorm:"default:0"`
+	TrafficUsedDown     int64      `json:"-" gorm:"default:0"`
+	TrafficObservedAt   *time.Time `json:"-"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
 }
 
 // User represents an authenticated user

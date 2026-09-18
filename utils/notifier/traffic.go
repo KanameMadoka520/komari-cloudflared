@@ -63,8 +63,7 @@ func CheckTraffic() {
 		}
 
 		// 计算不同类型的使用值
-		effectiveUp, effectiveDown := clients.EffectiveTraffic(c, r.Network.TotalUp, r.Network.TotalDown)
-		used := computeUsedByType(strings.ToLower(c.TrafficLimitType), effectiveUp, effectiveDown)
+		used := clients.EffectiveTrafficTotal(c, r.Network.TotalUp, r.Network.TotalDown)
 		key := "traffic:" + c.UUID
 		if c.TrafficResetAt != nil {
 			key += ":" + c.TrafficResetAt.Format(time.RFC3339Nano)
@@ -114,29 +113,7 @@ func CheckTraffic() {
 }
 
 func computeUsedByType(t string, up, down int64) int64 {
-	switch t {
-	case "up":
-		return up
-	case "down":
-		return down
-	case "sum":
-		if up > math.MaxInt64-down {
-			return math.MaxInt64
-		}
-		return up + down
-	case "min":
-		if up < down {
-			return up
-		}
-		return down
-	case "max":
-		fallthrough
-	default:
-		if up > down {
-			return up
-		}
-		return down
-	}
+	return clients.TrafficByType(t, up, down)
 }
 
 func humanBytes(b int64) string {

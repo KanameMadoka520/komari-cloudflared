@@ -62,3 +62,39 @@ func TestCycleSurvivesMultipleCounterResets(t *testing.T) {
 		}
 	}
 }
+
+func TestProviderTotalUsesBillingRuleWithoutInventingSplit(t *testing.T) {
+	at := time.Unix(100, 0).UTC()
+	initial := int64(120 * 1024 * 1024 * 1024)
+	c := models.Client{TrafficResetAt: &at, TrafficObservedAt: &at, TrafficInitialTotal: &initial,
+		TrafficResetUp: 1000, TrafficResetDown: 2000}
+	report := v2.Report{UpdatedAt: at.Add(time.Second), Network: v2.NetworkReport{TotalUp: 1000 + 1024*1024*1024, TotalDown: 2000 + 2*1024*1024*1024}}
+	advanceTraffic(&c, report)
+	for _, tc := range []struct {
+		rule  string
+		delta int64
+	}{{"sum", 3}, {"up", 1}, {"down", 2}, {"max", 2}, {"min", 1}, {"SUM", 3}, {"", 2}} {
+		c.TrafficLimitType = tc.rule
+		if got := EffectiveTrafficTotal(c, 0, 0); got != initial+tc.delta*1024*1024*1024 {
+			t.Fatalf("rule %q: got %d", tc.rule, got)
+		}
+	}
+	if up, down := EffectiveTraffic(c, 0, 0); up != 1024*1024*1024 || down != 2*1024*1024*1024 {
+		t.Fatal("provider baseline was fabricated as directional traffic")
+	}
+	c.TrafficLimitType = "sum"
+	report.UpdatedAt = report.UpdatedAt.Add(time.Second)
+	report.Network.TotalUp, report.Network.TotalDown = 5, 7
+	advanceTraffic(&c, report)
+	if got := EffectiveTrafficTotal(c, 0, 0); got != initial+3*1024*1024*1024+12 {
+		t.Fatalf("counter reset lost provider usage: %d", got)
+	}
+	initial = 0
+	if got := EffectiveTrafficTotal(c, 0, 0); got != 3*1024*1024*1024+12 {
+		t.Fatalf("zero baseline failed: %d", got)
+	}
+	initial = 9223372036854775807
+	if got := EffectiveTrafficTotal(c, 0, 0); got != initial {
+		t.Fatalf("total overflowed: %d", got)
+	}
+}

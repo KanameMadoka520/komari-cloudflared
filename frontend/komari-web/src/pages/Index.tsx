@@ -63,6 +63,8 @@ const Index = () => {
     const regions = new Set<string>();
     let totalUp = 0;
     let totalDown = 0;
+    let billedTotal = 0;
+    let hasTotalMode = false;
     let speedUp = 0;
     let speedDown = 0;
 
@@ -75,16 +77,18 @@ const Index = () => {
 
       totalUp += (record.network.cycleUp ?? record.network.totalUp) || 0;
       totalDown += (record.network.cycleDown ?? record.network.totalDown) || 0;
+      billedTotal += record.network.cycleTotal ?? ((record.network.cycleUp ?? record.network.totalUp) + (record.network.cycleDown ?? record.network.totalDown));
+      hasTotalMode ||= record.network.totalMode ?? false;
       speedUp += record.network.up || 0;
       speedDown += record.network.down || 0;
     }
 
     return {
       regionCount: regions.size,
-      trafficText: `↑ ${formatBytes(totalUp)} / ↓ ${formatBytes(totalDown)}`,
+      trafficText: hasTotalMode ? `${t("trafficCycle.usedTotal")}: ${formatBytes(billedTotal)}` : `↑ ${formatBytes(totalUp)} / ↓ ${formatBytes(totalDown)}`,
       speedText: `↑ ${formatSpeed(speedUp)} / ↓ ${formatSpeed(speedDown)}`,
     };
-  }, [liveData.data, nodeList, onlineSet]);
+  }, [liveData.data, nodeList, onlineSet, t]);
 
   const statusCards = useMemo(
     () => [

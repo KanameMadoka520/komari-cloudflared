@@ -28,6 +28,8 @@ export type Record = {
     totalDown: number;
     cycleUp?: number;
     cycleDown?: number;
+    cycleTotal?: number;
+    totalMode?: boolean;
   };
   connections: {
     tcp: number;

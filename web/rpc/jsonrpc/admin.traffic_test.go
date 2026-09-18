@@ -75,3 +75,90 @@ func TestTrafficCalibrationPersistsAndKeepsRawCounters(t *testing.T) {
 		t.Fatal("generic edit bypassed cycle API")
 	}
 }
+
+func TestProviderTotalCalibrationAPI(t *testing.T) {
+	db := dbcore.GetDBInstance()
+	id := "provider-total-test"
+	if err := db.Create(&models.Client{UUID: id, Token: id, Name: id, TrafficLimitType: "sum"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	defer db.Delete(&models.Client{}, "uuid = ?", id)
+	defer agent.DeleteLatestReport(id)
+	report := v2.Report{UUID: id, UpdatedAt: time.Now().UTC(), Network: v2.NetworkReport{TotalUp: 1000, TotalDown: 2000}}
+	agent.RecordReport(report)
+	call := func(values map[string]any) (any, *rpc.JsonRpcError) {
+		values["uuid"] = id
+		return adminSetClientTrafficUsage(context.Background(), &rpc.JsonRpcRequest{Params: values})
+	}
+	result, e := call(map[string]any{"total": 120})
+	if e != nil {
+		t.Fatal(e)
+	}
+	snapshot := result.(map[string]any)
+	if snapshot["total"] != int64(120) || snapshot["upload"] != int64(0) || snapshot["total_mode"] != true {
+		t.Fatalf("bad snapshot: %v", snapshot)
+	}
+	report.UpdatedAt = time.Now().UTC().Add(time.Second)
+	report.Network.TotalUp, report.Network.TotalDown = 1001, 2002
+	if err := clients.ObserveTraffic(report); err != nil {
+		t.Fatal(err)
+	}
+	agent.RecordReport(report)
+	c, err := clients.GetClientByUUID(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.TrafficInitialTotal == nil || clients.EffectiveTrafficTotal(c, 0, 0) != 123 {
+		t.Fatal("total failed to persist")
+	}
+	ctx := rpc.NewContextWithMeta(context.Background(), &rpc.ContextMeta{})
+	result, e = getNodesLatestStatus(ctx, &rpc.JsonRpcRequest{Params: map[string]any{"uuid": id}})
+	if e != nil {
+		t.Fatal(e)
+	}
+	b, _ := json.Marshal(result)
+	var data map[string]any
+	json.Unmarshal(b, &data)
+	if data["traffic_used_total"] != float64(123) || data["traffic_total_mode"] != true || data["net_total_up"] != float64(1001) || data["traffic_used_up"] != float64(1) {
+		t.Fatalf("status: %s", b)
+	}
+	for _, bad := range []map[string]any{
+		{"total": -1}, {"total": 1.5}, {"total": nil}, {"total": "1 GB"}, {"total": 9007199254740992},
+		{"total": 10, "upload": 0}, {"total": 10, "download": nil}, {"total": nil, "upload": 0, "download": 0},
+	} {
+		if _, e := call(bad); e == nil {
+			t.Fatalf("accepted invalid params: %v", bad)
+		}
+	}
+	c, _ = clients.GetClientByUUID(id)
+	if clients.EffectiveTrafficTotal(c, 0, 0) != 123 {
+		t.Fatal("invalid request changed baseline")
+	}
+	if err := clients.SaveClient(map[string]any{"uuid": id, "traffic_initial_total": 1}); err == nil {
+		t.Fatal("generic edit bypassed total baseline protection")
+	}
+	if _, e := call(map[string]any{"total": 0}); e != nil {
+		t.Fatal(e)
+	}
+	c, _ = clients.GetClientByUUID(id)
+	if c.TrafficInitialTotal == nil || clients.EffectiveTrafficTotal(c, 0, 0) != 0 {
+		t.Fatal("zero total did not persist")
+	}
+	if _, e := call(map[string]any{"upload": 20, "download": 30}); e != nil {
+		t.Fatal(e)
+	}
+	c, _ = clients.GetClientByUUID(id)
+	if c.TrafficInitialTotal != nil || clients.EffectiveTrafficTotal(c, 0, 0) != 50 {
+		t.Fatal("split did not clear total mode")
+	}
+	if _, e := call(map[string]any{"total": 120}); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := adminResetClientTraffic(context.Background(), &rpc.JsonRpcRequest{Params: map[string]any{"uuid": id}}); e != nil {
+		t.Fatal(e)
+	}
+	c, _ = clients.GetClientByUUID(id)
+	if c.TrafficInitialTotal != nil || clients.EffectiveTrafficTotal(c, 0, 0) != 0 {
+		t.Fatal("reset retained total baseline")
+	}
+}

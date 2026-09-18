@@ -5,6 +5,7 @@ import (
 	"github.com/komari-monitor/komari/internal/metricstore"
 	v2 "github.com/komari-monitor/komari/protocol/v2"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,6 +28,34 @@ func EffectiveTraffic(client models.Client, rawUp, rawDown int64) (int64, int64)
 	}
 	return effectiveCounter(rawUp, client.TrafficResetUp, client.TrafficInitialUp),
 		effectiveCounter(rawDown, client.TrafficResetDown, client.TrafficInitialDown)
+}
+
+// TrafficByType applies the node's billing rule to directional usage.
+func TrafficByType(kind string, up, down int64) int64 {
+	up, down = clampNonNegative(up), clampNonNegative(down)
+	switch strings.ToLower(kind) {
+	case "up":
+		return up
+	case "down":
+		return down
+	case "sum":
+		return saturatingAdd(up, down)
+	case "min":
+		return min(up, down)
+	default:
+		return max(up, down)
+	}
+}
+
+// EffectiveTrafficTotal includes an independent provider baseline, if set.
+// In total mode EffectiveTraffic's directions are increments since calibration.
+func EffectiveTrafficTotal(client models.Client, rawUp, rawDown int64) int64 {
+	up, down := EffectiveTraffic(client, rawUp, rawDown)
+	used := TrafficByType(client.TrafficLimitType, up, down)
+	if client.TrafficInitialTotal != nil && client.TrafficResetAt != nil {
+		used = saturatingAdd(clampNonNegative(*client.TrafficInitialTotal), used)
+	}
+	return used
 }
 
 func effectiveCounter(raw, baseline, initial int64) int64 {
@@ -57,6 +86,15 @@ func saturatingAdd(left, right int64) int64 {
 // are captured at the time of the operation; initial values are what the
 // administrator wants the current cycle to display immediately.
 func SetTrafficBaseline(uuid string, rawUp, rawDown, initialUp, initialDown int64, at time.Time) error {
+	return SetTrafficUsageBaseline(uuid, rawUp, rawDown, initialUp, initialDown, nil, at)
+}
+
+// SetTrafficUsageBaseline atomically switches between total and split entry.
+// A total baseline cannot be mixed with initial directional usage.
+func SetTrafficUsageBaseline(uuid string, rawUp, rawDown, initialUp, initialDown int64, total *int64, at time.Time) error {
+	if total != nil && (*total < 0 || initialUp != 0 || initialDown != 0) {
+		return fmt.Errorf("total usage must be non-negative and cannot be mixed with directional usage")
+	}
 	if uuid == "" {
 		return fmt.Errorf("invalid client UUID")
 	}
@@ -71,15 +109,16 @@ func SetTrafficBaseline(uuid string, rawUp, rawDown, initialUp, initialDown int6
 	at = at.UTC()
 	db := dbcore.GetDBInstance()
 	result := db.Model(&models.Client{}).Where("uuid = ?", uuid).Updates(map[string]interface{}{
-		"traffic_reset_at":     at,
-		"traffic_reset_up":     rawUp,
-		"traffic_reset_down":   rawDown,
-		"traffic_initial_up":   initialUp,
-		"traffic_initial_down": initialDown,
-		"updated_at":           at,
-		"traffic_used_up":      initialUp,
-		"traffic_used_down":    initialDown,
-		"traffic_observed_at":  at,
+		"traffic_initial_total": total,
+		"traffic_reset_at":      at,
+		"traffic_reset_up":      rawUp,
+		"traffic_reset_down":    rawDown,
+		"traffic_initial_up":    initialUp,
+		"traffic_initial_down":  initialDown,
+		"updated_at":            at,
+		"traffic_used_up":       initialUp,
+		"traffic_used_down":     initialDown,
+		"traffic_observed_at":   at,
 	})
 	if result.Error != nil {
 		return result.Error

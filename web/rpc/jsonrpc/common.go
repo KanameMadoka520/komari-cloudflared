@@ -326,35 +326,37 @@ func getNodesLatestStatus(ctx context.Context, req *rpc.JsonRpcRequest) (any, *r
 	}
 
 	type recordLike struct {
-		Client          string              `json:"client"`
-		Time            time.Time           `json:"time"`
-		Cpu             float32             `json:"cpu"`
-		Gpu             float32             `json:"gpu"`
-		GpuCount        int                 `json:"gpu_count,omitempty"`
-		GpuAverageUsage float64             `json:"gpu_average_usage,omitempty"`
-		GpuDetailedInfo []v2.GPUDeviceInfo  `json:"gpu_detailed_info,omitempty"`
-		Ram             int64               `json:"ram"`
-		RamTotal        int64               `json:"ram_total"`
-		Swap            int64               `json:"swap"`
-		SwapTotal       int64               `json:"swap_total"`
-		Load            float32             `json:"load"`
-		Load5           float32             `json:"load5"`
-		Load15          float32             `json:"load15"`
-		Temp            float32             `json:"temp"`
-		Disk            int64               `json:"disk"`
-		DiskTotal       int64               `json:"disk_total"`
-		NetIn           int64               `json:"net_in"`
-		NetOut          int64               `json:"net_out"`
-		NetTotalUp      int64               `json:"net_total_up"`
-		NetTotalDown    int64               `json:"net_total_down"`
-		TrafficUsedUp   int64               `json:"traffic_used_up"`
-		TrafficUsedDown int64               `json:"traffic_used_down"`
-		Process         int                 `json:"process"`
-		Connections     int                 `json:"connections"`
-		ConnectionsUdp  int                 `json:"connections_udp"`
-		Online          bool                `json:"online"`
-		Uptime          int64               `json:"uptime"`
-		Ping            map[string]pingStat `json:"ping"`
+		Client           string              `json:"client"`
+		Time             time.Time           `json:"time"`
+		Cpu              float32             `json:"cpu"`
+		Gpu              float32             `json:"gpu"`
+		GpuCount         int                 `json:"gpu_count,omitempty"`
+		GpuAverageUsage  float64             `json:"gpu_average_usage,omitempty"`
+		GpuDetailedInfo  []v2.GPUDeviceInfo  `json:"gpu_detailed_info,omitempty"`
+		Ram              int64               `json:"ram"`
+		RamTotal         int64               `json:"ram_total"`
+		Swap             int64               `json:"swap"`
+		SwapTotal        int64               `json:"swap_total"`
+		Load             float32             `json:"load"`
+		Load5            float32             `json:"load5"`
+		Load15           float32             `json:"load15"`
+		Temp             float32             `json:"temp"`
+		Disk             int64               `json:"disk"`
+		DiskTotal        int64               `json:"disk_total"`
+		NetIn            int64               `json:"net_in"`
+		NetOut           int64               `json:"net_out"`
+		NetTotalUp       int64               `json:"net_total_up"`
+		NetTotalDown     int64               `json:"net_total_down"`
+		TrafficUsedUp    int64               `json:"traffic_used_up"`
+		TrafficUsedDown  int64               `json:"traffic_used_down"`
+		TrafficUsedTotal int64               `json:"traffic_used_total"`
+		TrafficTotalMode bool                `json:"traffic_total_mode"`
+		Process          int                 `json:"process"`
+		Connections      int                 `json:"connections"`
+		ConnectionsUdp   int                 `json:"connections_udp"`
+		Online           bool                `json:"online"`
+		Uptime           int64               `json:"uptime"`
+		Ping             map[string]pingStat `json:"ping"`
 	}
 
 	respMap := make(map[string]recordLike, len(latest))
@@ -376,36 +378,42 @@ func getNodesLatestStatus(ctx context.Context, req *rpc.JsonRpcRequest) (any, *r
 		}
 		stats := getPingStatsForNode(uuid, pingTasks)
 		effectiveUp, effectiveDown := rep.Network.TotalUp, rep.Network.TotalDown
+		effectiveTotal := clients.TrafficByType("max", effectiveUp, effectiveDown)
+		totalMode := false
 		if client, ok := clientByUUID[uuid]; ok {
+			effectiveTotal = clients.EffectiveTrafficTotal(client, effectiveUp, effectiveDown)
+			totalMode = client.TrafficInitialTotal != nil
 			effectiveUp, effectiveDown = clients.EffectiveTraffic(client, effectiveUp, effectiveDown)
 		}
 		rl := recordLike{
-			Client:          uuid,
-			Time:            rep.UpdatedAt,
-			Cpu:             float32(rep.CPU.Usage),
-			Gpu:             gpuUsageFromReport(rep),
-			Ram:             rep.Ram.Used,
-			RamTotal:        rep.Ram.Total,
-			Swap:            rep.Swap.Used,
-			SwapTotal:       rep.Swap.Total,
-			Load:            float32(rep.Load.Load1),
-			Load5:           float32(rep.Load.Load5),
-			Load15:          float32(rep.Load.Load15),
-			Temp:            0,
-			Disk:            rep.Disk.Used,
-			DiskTotal:       rep.Disk.Total,
-			NetIn:           rep.Network.Down,
-			NetOut:          rep.Network.Up,
-			NetTotalUp:      rep.Network.TotalUp,
-			TrafficUsedUp:   effectiveUp,
-			NetTotalDown:    rep.Network.TotalDown,
-			TrafficUsedDown: effectiveDown,
-			Process:         rep.Process,
-			Connections:     rep.Connections.TCP + rep.Connections.UDP,
-			ConnectionsUdp:  rep.Connections.UDP,
-			Online:          onlineSet[uuid],
-			Uptime:          rep.Uptime,
-			Ping:            stats,
+			Client:           uuid,
+			Time:             rep.UpdatedAt,
+			Cpu:              float32(rep.CPU.Usage),
+			Gpu:              gpuUsageFromReport(rep),
+			Ram:              rep.Ram.Used,
+			RamTotal:         rep.Ram.Total,
+			Swap:             rep.Swap.Used,
+			SwapTotal:        rep.Swap.Total,
+			Load:             float32(rep.Load.Load1),
+			Load5:            float32(rep.Load.Load5),
+			Load15:           float32(rep.Load.Load15),
+			Temp:             0,
+			Disk:             rep.Disk.Used,
+			DiskTotal:        rep.Disk.Total,
+			NetIn:            rep.Network.Down,
+			NetOut:           rep.Network.Up,
+			NetTotalUp:       rep.Network.TotalUp,
+			TrafficUsedUp:    effectiveUp,
+			NetTotalDown:     rep.Network.TotalDown,
+			TrafficUsedDown:  effectiveDown,
+			TrafficUsedTotal: effectiveTotal,
+			TrafficTotalMode: totalMode,
+			Process:          rep.Process,
+			Connections:      rep.Connections.TCP + rep.Connections.UDP,
+			ConnectionsUdp:   rep.Connections.UDP,
+			Online:           onlineSet[uuid],
+			Uptime:           rep.Uptime,
+			Ping:             stats,
 		}
 		if rep.GPU != nil {
 			rl.GpuCount = rep.GPU.Count

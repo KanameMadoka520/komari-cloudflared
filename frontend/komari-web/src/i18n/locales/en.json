@@ -1600,8 +1600,8 @@
   "warn_websocket": "RPC2 request failed, please check the network connection or server status!",
   "trafficCycle": {
     "title": "Traffic cycle",
-    "description": "Reset or calibrate current usage for this node; new traffic continues accumulating. Homepage usage and alerts use this cycle. Historical charts and daily reports retain their original measurements.",
-    "current": "Current cycle usage",
+    "description": "Reset this traffic cycle or align current usage with your provider. Future usage accumulates from the entered amount.",
+    "current": "Current billed usage",
     "since": "Last reset / calibration",
     "upload": "Current upload usage",
     "download": "Current download usage",
@@ -1612,6 +1612,22 @@
     "confirm": "Reset current upload and download usage for this node to zero now? Monitoring history is preserved.",
     "confirmButton": "Confirm reset",
     "reset": "Reset to zero",
-    "save": "Save current usage"
+    "save": "Save current usage",
+    "entryMode": "Usage entry mode",
+    "totalMode": "Enter total usage",
+    "splitMode": "Separate upload / download",
+    "total": "Used traffic shown by provider",
+    "usedTotal": "Billed usage",
+    "sinceCalibration": "Since calibration",
+    "totalHelp": "Enter one used amount without splitting upload and download. New traffic follows the saved billing rule.",
+    "splitHelp": "The previous total cannot be split automatically. Enter complete upload and download usage; saving replaces the previous total calibration.",
+    "billingRule": "Future billing rule: {{rule}} (saved node setting)",
+    "rules": {
+      "sum": "Upload + download",
+      "up": "Upload only",
+      "down": "Download only",
+      "max": "Larger direction",
+      "min": "Smaller direction"
+    }
   }
 }
