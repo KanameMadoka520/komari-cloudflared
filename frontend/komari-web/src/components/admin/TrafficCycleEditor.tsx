@@ -11,7 +11,7 @@ function parseUsage(input: string): number | null {
   if (!match) return null;
   const unit = (match[2] ?? "B").toUpperCase();
   const powers: Record<string, number> = { B: 0, KB: 1, MB: 2, GB: 3, TB: 4, KIB: 1, MIB: 2, GIB: 3, TIB: 4 };
-  const bytes = Math.round(Number(match[1]) * (unit.includes("I") ? 1024 : 1000) ** powers[unit]);
+  const bytes = Math.round(Number(match[1]) * 1024 ** powers[unit]);
   return Number.isSafeInteger(bytes) && bytes >= 0 ? bytes : null;
 }
 

@@ -1605,7 +1605,7 @@
     "since": "Last reset / calibration",
     "upload": "Current upload usage",
     "download": "Current download usage",
-    "units": "Use B, GB, TB (decimal) or GiB, TiB (binary), for example 12.5 GB. Empty or invalid values cannot be saved.",
+    "units": "Use B, GB, TB, GiB, or TiB; all use Komari’s existing binary 1024-based conversion. For example, 12.5 GB. Empty or invalid values cannot be saved.",
     "invalid": "Enter a valid non-negative size, such as 12.5 GB or 10 GiB.",
     "saved": "Traffic cycle updated",
     "failed": "Failed to update traffic cycle",
