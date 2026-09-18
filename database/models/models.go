@@ -40,8 +40,17 @@ type Client struct {
 	Hidden           bool       `json:"hidden" gorm:"default:false"`
 	TrafficLimit     int64      `json:"traffic_limit" gorm:"type:bigint"`
 	TrafficLimitType string     `json:"traffic_limit_type" gorm:"type:varchar(10);default:'max'"` // 流量阈值类型：sum max min up down
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
+	// TrafficReset* define the start of the current billing/usage cycle. The
+	// agent continues reporting its lifetime counters; these fields let the
+	// administrator rebase the displayed and alerted usage without deleting
+	// monitoring history.
+	TrafficResetAt     *time.Time `json:"traffic_reset_at,omitempty"`
+	TrafficResetUp     int64      `json:"-" gorm:"type:bigint;default:0"`
+	TrafficResetDown   int64      `json:"-" gorm:"type:bigint;default:0"`
+	TrafficInitialUp   int64      `json:"traffic_initial_up" gorm:"type:bigint;default:0"`
+	TrafficInitialDown int64      `json:"traffic_initial_down" gorm:"type:bigint;default:0"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
 }
 
 // User represents an authenticated user

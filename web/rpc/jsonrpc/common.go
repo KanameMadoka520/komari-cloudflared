@@ -359,12 +359,21 @@ func getNodesLatestStatus(ctx context.Context, req *rpc.JsonRpcRequest) (any, *r
 
 	// 预取所有 ping 任务
 	pingTasks, _ := tasks.GetAllPingTasks()
+	clientInfo, _ := clients.GetAllClientBasicInfo()
+	clientByUUID := make(map[string]models.Client, len(clientInfo))
+	for _, client := range clientInfo {
+		clientByUUID[client.UUID] = client
+	}
 
 	appendOne := func(uuid string, rep *v2.Report) {
 		if rep == nil {
 			return
 		}
 		stats := getPingStatsForNode(uuid, pingTasks)
+		effectiveUp, effectiveDown := rep.Network.TotalUp, rep.Network.TotalDown
+		if client, ok := clientByUUID[uuid]; ok {
+			effectiveUp, effectiveDown = clients.EffectiveTraffic(client, effectiveUp, effectiveDown)
+		}
 		rl := recordLike{
 			Client:         uuid,
 			Time:           rep.UpdatedAt,
@@ -382,8 +391,8 @@ func getNodesLatestStatus(ctx context.Context, req *rpc.JsonRpcRequest) (any, *r
 			DiskTotal:      rep.Disk.Total,
 			NetIn:          rep.Network.Down,
 			NetOut:         rep.Network.Up,
-			NetTotalUp:     rep.Network.TotalUp,
-			NetTotalDown:   rep.Network.TotalDown,
+			NetTotalUp:     effectiveUp,
+			NetTotalDown:   effectiveDown,
 			Process:        rep.Process,
 			Connections:    rep.Connections.TCP + rep.Connections.UDP,
 			ConnectionsUdp: rep.Connections.UDP,

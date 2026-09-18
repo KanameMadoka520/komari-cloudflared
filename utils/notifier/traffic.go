@@ -63,7 +63,8 @@ func CheckTraffic() {
 		}
 
 		// 计算不同类型的使用值
-		used := computeUsedByType(strings.ToLower(c.TrafficLimitType), r.Network.TotalUp, r.Network.TotalDown)
+		effectiveUp, effectiveDown := clients.EffectiveTraffic(c, r.Network.TotalUp, r.Network.TotalDown)
+		used := computeUsedByType(strings.ToLower(c.TrafficLimitType), effectiveUp, effectiveDown)
 		if used <= 0 {
 			continue
 		}
