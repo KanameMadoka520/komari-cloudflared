@@ -197,11 +197,11 @@ const NodeTable: React.FC<NodeTableProps> = ({ nodes, liveData, onlineSet }) => 
         break;
       }
       case "totalUp": {
-        comparison = (aData.network.cycleUp ?? aData.network.totalUp) - (bData.network.cycleUp ?? bData.network.totalUp);
+        comparison = aData.network.totalUp - bData.network.totalUp;
         break;
       }
       case "totalDown": {
-        comparison = (aData.network.cycleDown ?? aData.network.totalDown) - (bData.network.cycleDown ?? bData.network.totalDown);
+        comparison = aData.network.totalDown - bData.network.totalDown;
         break;
       }
       default:
@@ -307,7 +307,7 @@ const NodeTable: React.FC<NodeTableProps> = ({ nodes, liveData, onlineSet }) => 
                 {getSortIcon("networkDown")}
               </Flex>
             </TableHead>
-            <TableHead className="text-center min-w-[100px]">{t("trafficCycle.usedTotal")}</TableHead>
+            <TableHead className="text-center min-w-[100px]">{t("trafficCycle.cycleUsage")}</TableHead>
             <TableHead
               className="cursor-pointer hover:bg-accent-2 select-none text-center min-w-[80px]"
               onClick={handleSort("totalUp")}
@@ -458,12 +458,10 @@ const NodeTable: React.FC<NodeTableProps> = ({ nodes, liveData, onlineSet }) => 
                     {formatBytes(nodeData.network.cycleTotal ?? (nodeData.network.totalUp + nodeData.network.totalDown))}
                   </TableCell>
                   <TableCell className="text-center min-w-[80px]">
-                    <label>↑{formatBytes((nodeData.network.cycleUp ?? nodeData.network.totalUp))}</label>
-                    {nodeData.network.totalMode && <div className="text-xs text-muted-foreground">{t("trafficCycle.sinceCalibration")}</div>}
+                    <label>↑{formatBytes(nodeData.network.totalUp)}</label>
                   </TableCell>
                   <TableCell className="text-center min-w-[80px]">
-                    <label>↓{formatBytes((nodeData.network.cycleDown ?? nodeData.network.totalDown))}</label>
-                    {nodeData.network.totalMode && <div className="text-xs text-muted-foreground">{t("trafficCycle.sinceCalibration")}</div>}
+                    <label>↓{formatBytes(nodeData.network.totalDown)}</label>
                   </TableCell>
                 </TableRow>
 

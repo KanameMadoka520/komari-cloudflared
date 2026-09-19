@@ -1628,6 +1628,7 @@
       "down": "Download only",
       "max": "Larger direction",
       "min": "Smaller direction"
-    }
+    },
+    "cycleUsage": "Billing cycle usage"
   }
 }

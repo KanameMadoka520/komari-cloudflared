@@ -67,11 +67,12 @@ const Node = React.memo(
 
   const uploadSpeed = formatBytes(liveData.network.up);
   const downloadSpeed = formatBytes(liveData.network.down);
-  const totalUpload = formatBytes((liveData.network.cycleUp ?? liveData.network.totalUp));
-  const totalDownload = formatBytes((liveData.network.cycleDown ?? liveData.network.totalDown));
-  const trafficText = liveData.network.totalMode
-    ? `${t("trafficCycle.usedTotal")}: ${formatBytes(liveData.network.cycleTotal ?? 0)}`
-    : `↑ ${totalUpload} ↓ ${totalDownload}`;
+  const totalUpload = formatBytes(liveData.network.totalUp);
+  const totalDownload = formatBytes(liveData.network.totalDown);
+  const trafficText = `↑ ${totalUpload} ↓ ${totalDownload}`;
+  const cycleText = liveData.network.cycleTotal !== undefined
+    ? formatBytes(liveData.network.cycleTotal)
+    : `↑ ${formatBytes(liveData.network.cycleUp ?? liveData.network.totalUp)} ↓ ${formatBytes(liveData.network.cycleDown ?? liveData.network.totalDown)}`;
   const trafficPercent = liveData.network.cycleTotal !== undefined && basic.traffic_limit > 0
     ? liveData.network.cycleTotal / basic.traffic_limit * 100
     : getTrafficPercentage(liveData.network.cycleUp ?? liveData.network.totalUp,
@@ -196,16 +197,16 @@ const Node = React.memo(
               {formatBytes(basic.disk_total)})
             </Text>
           </Flex>
-          {basic.traffic_limit > 0 ? (
+          {basic.traffic_limit > 0 && (
             <Flex justify="between" hidden={isMobile} direction="column">
               <UsageBar
-                label={t("nodeCard.totalTraffic")}
+                label={t("trafficCycle.cycleUsage")}
                 value={trafficPercent}
                 max={Infinity}
               />
               <Flex wrap="nowrap" justify="between">
                 <Text size="1" className="md:block hidden" color="gray">
-                  {trafficText}
+                  {cycleText}
                 </Text>
                 <Text size="1" className="md:block hidden" color="gray">
                   {basic.traffic_limit_type &&
@@ -215,7 +216,7 @@ const Node = React.memo(
                 </Text>
               </Flex>
             </Flex>
-          ) : (
+          )}
             <Flex justify="between" hidden={isMobile}>
               <Text size="2" color="gray">
                 {t("nodeCard.totalTraffic")}
@@ -224,7 +225,6 @@ const Node = React.memo(
                 {trafficText}
               </Text>
             </Flex>
-          )}
 
           <Flex justify="between" hidden={isMobile}>
             <Text size="2" color="gray" className="flex items-center">
@@ -251,7 +251,7 @@ const Node = React.memo(
           </Flex>
           {basic.traffic_limit > 0 && isMobile && (
             <UsageBar
-              label={`${basic.traffic_limit_type && basic.traffic_limit_type.charAt(0).toUpperCase() + basic.traffic_limit_type.slice(1)}(${formatBytes(basic.traffic_limit)})`}
+              label={`${t("trafficCycle.cycleUsage")}: ${cycleText} / ${formatBytes(basic.traffic_limit)}`}
               max={Infinity}
               value={trafficPercent}
             />

@@ -98,3 +98,23 @@ func TestProviderTotalUsesBillingRuleWithoutInventingSplit(t *testing.T) {
 		t.Fatalf("total overflowed: %d", got)
 	}
 }
+
+func TestLifetimeTrafficSurvivesCounterResetAndBillingReset(t *testing.T) {
+	at := time.Unix(100, 0).UTC()
+	c := models.Client{TrafficLifetimeAt: &at, TrafficLifetimeRawUp: 1000, TrafficLifetimeRawDown: 2000, TrafficLifetimeUp: 5000, TrafficLifetimeDown: 7000}
+	for i, sample := range []struct{ up, down, wantUp, wantDown int64 }{{1100, 2200, 5100, 7200}, {10, 20, 5110, 7220}, {1200, 2300, 6300, 9500}} {
+		report := v2.Report{UpdatedAt: at.Add(time.Duration(i+1) * time.Second), Network: v2.NetworkReport{TotalUp: sample.up, TotalDown: sample.down}}
+		advanceLifetime(&c, report)
+		up, down := LifetimeTraffic(c, sample.up, sample.down)
+		if up != sample.wantUp || down != sample.wantDown {
+			t.Fatalf("sample %d got %d/%d want %d/%d", i, up, down, sample.wantUp, sample.wantDown)
+		}
+	}
+	reset := at.Add(10 * time.Second)
+	c.TrafficResetAt = &reset
+	c.TrafficResetUp, c.TrafficResetDown = 1200, 2300
+	c.TrafficUsedUp, c.TrafficUsedDown = 0, 0
+	if up, down := LifetimeTraffic(c, 0, 0); up != 6300 || down != 9500 {
+		t.Fatalf("billing reset changed lifetime %d/%d", up, down)
+	}
+}

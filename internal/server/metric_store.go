@@ -1,12 +1,14 @@
 package server
 
 import (
+	"context"
 	"fmt"
+	"github.com/komari-monitor/komari/database/clients"
 	"time"
 
 	"github.com/komari-monitor/komari/database/auditlog"
-	"github.com/komari-monitor/komari/internal/metricstore"
 	"github.com/komari-monitor/komari/internal/config"
+	"github.com/komari-monitor/komari/internal/metricstore"
 	logger "github.com/komari-monitor/komari/utils/log"
 )
 
@@ -80,6 +82,9 @@ func (a *App) InitStores() error {
 	if err := a.ConnectMetricStore(); err != nil {
 		auditlog.EventLog("error", fmt.Sprintf("Failed to initialize metric store: %v", err))
 		return err
+	}
+	if err := clients.InitializeTrafficLifetime(context.Background()); err != nil {
+		return fmt.Errorf("failed to initialize lifetime traffic: %w", err)
 	}
 	metricstore.StartReportBatcher()
 	a.addCleanup("metric-report-batcher", metricstore.StopReportBatcher)

@@ -74,8 +74,8 @@ const mergeLiveData = (
       network: {
         up: record.net_out ?? 0,
         down: record.net_in ?? 0,
-        totalUp: record.net_total_out ?? record.net_total_up ?? 0,
-        totalDown: record.net_total_in ?? record.net_total_down ?? 0,
+        totalUp: record.traffic_lifetime_up ?? record.net_total_out ?? record.net_total_up ?? 0,
+        totalDown: record.traffic_lifetime_down ?? record.net_total_in ?? record.net_total_down ?? 0,
         cycleUp: record.traffic_used_up ?? record.net_total_up ?? 0,
         cycleDown: record.traffic_used_down ?? record.net_total_down ?? 0,
         cycleTotal: record.traffic_used_total,

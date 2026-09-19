@@ -54,8 +54,15 @@ type Client struct {
 	TrafficUsedUp       int64      `json:"-" gorm:"default:0"`
 	TrafficUsedDown     int64      `json:"-" gorm:"default:0"`
 	TrafficObservedAt   *time.Time `json:"-"`
-	CreatedAt           time.Time  `json:"created_at"`
-	UpdatedAt           time.Time  `json:"updated_at"`
+	// Lifetime counters are independent of billing calibration and presence.
+	TrafficLifetimeUp      int64      `json:"-" gorm:"type:bigint;default:0"`
+	TrafficLifetimeDown    int64      `json:"-" gorm:"type:bigint;default:0"`
+	TrafficLifetimeRawUp   int64      `json:"-" gorm:"type:bigint;default:0"`
+	TrafficLifetimeRawDown int64      `json:"-" gorm:"type:bigint;default:0"`
+	TrafficLifetimeAt      *time.Time `json:"-"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // User represents an authenticated user

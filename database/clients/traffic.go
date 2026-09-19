@@ -1,6 +1,7 @@
 package clients
 
 import (
+	"context"
 	"fmt"
 	"github.com/komari-monitor/komari/internal/metricstore"
 	v2 "github.com/komari-monitor/komari/protocol/v2"
@@ -129,24 +130,116 @@ func SetTrafficUsageBaseline(uuid string, rawUp, rawDown, initialUp, initialDown
 	return nil
 }
 
-// ObserveTraffic persists only configured cycles. Caller holds TrafficMu.
-// Independent upload/download baselines handle Agent resets without losing the
-// usage accumulated before the reset; repeated or old samples are ignored.
+// LifetimeTraffic is the server-retained total, independent of billing resets.
+func LifetimeTraffic(client models.Client, rawUp, rawDown int64) (int64, int64) {
+	if client.TrafficLifetimeAt == nil {
+		return clampNonNegative(rawUp), clampNonNegative(rawDown)
+	}
+	return client.TrafficLifetimeUp, client.TrafficLifetimeDown
+}
+
+func advanceLifetime(client *models.Client, report v2.Report) bool {
+	if client.TrafficLifetimeAt != nil && !report.UpdatedAt.After(*client.TrafficLifetimeAt) {
+		return false
+	}
+	up, down := clampNonNegative(report.Network.TotalUp), clampNonNegative(report.Network.TotalDown)
+	if client.TrafficLifetimeAt == nil {
+		client.TrafficLifetimeUp, client.TrafficLifetimeDown = up, down
+	} else {
+		// Ignore a large counter dip as jitter and retain the high-water mark,
+		// so recovery to the previous value cannot be counted a second time.
+		add := func(total, previous *int64, current int64) {
+			delta := metricstore.TrafficCounterDelta(current, *previous)
+			if current < *previous && current > 0 && delta == 0 {
+				return
+			}
+			*total = saturatingAdd(*total, delta)
+			*previous = current
+		}
+		add(&client.TrafficLifetimeUp, &client.TrafficLifetimeRawUp, up)
+		add(&client.TrafficLifetimeDown, &client.TrafficLifetimeRawDown, down)
+		at := report.UpdatedAt.UTC()
+		client.TrafficLifetimeAt = &at
+		return true
+	}
+	client.TrafficLifetimeRawUp, client.TrafficLifetimeRawDown = up, down
+	at := report.UpdatedAt.UTC()
+	client.TrafficLifetimeAt = &at
+	return true
+}
+
+func lifetimeUpdates(client models.Client) map[string]any {
+	return map[string]any{
+		"traffic_lifetime_up": client.TrafficLifetimeUp, "traffic_lifetime_down": client.TrafficLifetimeDown,
+		"traffic_lifetime_raw_up": client.TrafficLifetimeRawUp, "traffic_lifetime_raw_down": client.TrafficLifetimeRawDown,
+		"traffic_lifetime_at": client.TrafficLifetimeAt,
+	}
+}
+
+// InitializeTrafficLifetime runs before accepting reports. Seed existing nodes
+// once from retained raw counters, including offline nodes. Never seed from
+// manually entered billing usage or from a retention-limited sum of samples.
+func InitializeTrafficLifetime(ctx context.Context) error {
+	TrafficMu.Lock()
+	defer TrafficMu.Unlock()
+	db := dbcore.GetDBInstance()
+	var pending []models.Client
+	if err := db.Where("traffic_lifetime_at IS NULL").Find(&pending).Error; err != nil {
+		return err
+	}
+	if len(pending) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(pending))
+	for _, c := range pending {
+		ids = append(ids, c.UUID)
+	}
+	at := time.Now().UTC()
+	latest, err := metricstore.GetLatestTrafficBefore(ctx, ids, at)
+	if err != nil {
+		return err
+	}
+	for _, c := range pending {
+		record, ok := latest[c.UUID]
+		// Configured cycles persist a raw counter on every observation; prefer
+		// this over the metric store's batched sample on the initial upgrade.
+		if c.TrafficObservedAt != nil {
+			record.NetTotalUp, record.NetTotalDown = c.TrafficResetUp, c.TrafficResetDown
+			ok = true
+		}
+		if !ok {
+			continue
+		}
+		advanceLifetime(&c, v2.Report{UpdatedAt: at, Network: v2.NetworkReport{TotalUp: record.NetTotalUp, TotalDown: record.NetTotalDown}})
+		if err := db.Model(&models.Client{}).Where("uuid = ? AND traffic_lifetime_at IS NULL", c.UUID).Updates(lifetimeUpdates(c)).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ObserveTraffic persists lifetime and optional billing counters atomically.
+// Caller holds TrafficMu. Presence changes never modify either counter set.
 func ObserveTraffic(report v2.Report) error {
 	db := dbcore.GetDBInstance()
 	var client models.Client
-	result := db.Where("uuid = ? AND traffic_reset_at IS NOT NULL", report.UUID).Limit(1).Find(&client)
+	result := db.Where("uuid = ?", report.UUID).Limit(1).Find(&client)
 	if result.Error != nil || result.RowsAffected == 0 {
 		return result.Error
 	}
-	if !advanceTraffic(&client, report) {
+	updates := map[string]any{}
+	if advanceLifetime(&client, report) {
+		updates = lifetimeUpdates(client)
+	}
+	if advanceTraffic(&client, report) {
+		updates["traffic_reset_up"], updates["traffic_reset_down"] = client.TrafficResetUp, client.TrafficResetDown
+		updates["traffic_used_up"], updates["traffic_used_down"] = client.TrafficUsedUp, client.TrafficUsedDown
+		updates["traffic_observed_at"] = client.TrafficObservedAt
+	}
+	if len(updates) == 0 {
 		return nil
 	}
-	return db.Model(&models.Client{}).Where("uuid = ?", report.UUID).Updates(map[string]any{
-		"traffic_reset_up": client.TrafficResetUp, "traffic_reset_down": client.TrafficResetDown,
-		"traffic_used_up": client.TrafficUsedUp, "traffic_used_down": client.TrafficUsedDown,
-		"traffic_observed_at": client.TrafficObservedAt,
-	}).Error
+	return db.Model(&models.Client{}).Where("uuid = ?", report.UUID).Updates(updates).Error
 }
 
 func advanceTraffic(client *models.Client, report v2.Report) bool {

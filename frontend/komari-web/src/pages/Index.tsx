@@ -63,32 +63,30 @@ const Index = () => {
     const regions = new Set<string>();
     let totalUp = 0;
     let totalDown = 0;
-    let billedTotal = 0;
-    let hasTotalMode = false;
     let speedUp = 0;
     let speedDown = 0;
 
     for (const node of nodeList ?? []) {
-      if (!onlineSet.has(node.uuid)) continue;
-
-      regions.add(node.region);
       const record = liveData.data[node.uuid];
       if (!record) continue;
 
-      totalUp += (record.network.cycleUp ?? record.network.totalUp) || 0;
-      totalDown += (record.network.cycleDown ?? record.network.totalDown) || 0;
-      billedTotal += record.network.cycleTotal ?? ((record.network.cycleUp ?? record.network.totalUp) + (record.network.cycleDown ?? record.network.totalDown));
-      hasTotalMode ||= record.network.totalMode ?? false;
-      speedUp += record.network.up || 0;
-      speedDown += record.network.down || 0;
+      // Include offline nodes in retained totals; only speed and regions
+      // describe machines that are currently online.
+      totalUp += record.network.totalUp || 0;
+      totalDown += record.network.totalDown || 0;
+      if (onlineSet.has(node.uuid)) {
+        regions.add(node.region);
+        speedUp += record.network.up || 0;
+        speedDown += record.network.down || 0;
+      }
     }
 
     return {
       regionCount: regions.size,
-      trafficText: hasTotalMode ? `${t("trafficCycle.usedTotal")}: ${formatBytes(billedTotal)}` : `↑ ${formatBytes(totalUp)} / ↓ ${formatBytes(totalDown)}`,
+      trafficText: `↑ ${formatBytes(totalUp)} / ↓ ${formatBytes(totalDown)}`,
       speedText: `↑ ${formatSpeed(speedUp)} / ↓ ${formatSpeed(speedDown)}`,
     };
-  }, [liveData.data, nodeList, onlineSet, t]);
+  }, [liveData.data, nodeList, onlineSet]);
 
   const statusCards = useMemo(
     () => [
