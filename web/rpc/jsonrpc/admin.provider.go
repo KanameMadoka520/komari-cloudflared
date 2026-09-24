@@ -2,12 +2,12 @@ package jsonrpc
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/komari-monitor/komari/database"
 	"github.com/komari-monitor/komari/database/models"
 	"github.com/komari-monitor/komari/internal/config"
 	"github.com/komari-monitor/komari/pkg/rpc"
-	"github.com/komari-monitor/komari/utils/messageSender"
 	msfactory "github.com/komari-monitor/komari/utils/messageSender/factory"
 	"github.com/komari-monitor/komari/web/oauth"
 	oauthfactory "github.com/komari-monitor/komari/web/oauth/factory"
@@ -50,17 +50,20 @@ func adminSetMessageSender(_ context.Context, req *rpc.JsonRpcRequest) (any, *rp
 	if senderConfig.Name == "" {
 		return nil, rpc.MakeError(rpc.InvalidParams, "Provider name is required", nil)
 	}
-	if _, exists := msfactory.GetConstructor(senderConfig.Name); !exists {
+	ctor, exists := msfactory.GetConstructor(senderConfig.Name)
+	if !exists {
 		return nil, rpc.MakeError(rpc.NotFound, "Provider not found: "+senderConfig.Name, nil)
 	}
+	sender := ctor()
+	if err := json.Unmarshal([]byte(senderConfig.Addition), sender.GetConfiguration()); err != nil {
+		return nil, rpc.MakeError(rpc.InvalidParams, "Invalid configuration: "+err.Error(), nil)
+	}
+	if err := sender.Init(); err != nil {
+		return nil, rpc.MakeError(rpc.InternalError, "Failed to load message sender provider: "+err.Error(), nil)
+	}
+	_ = sender.Destroy()
 	if err := database.SaveMessageSenderConfig(&senderConfig); err != nil {
 		return nil, rpc.MakeError(rpc.InternalError, "Failed to save message sender provider configuration: "+err.Error(), nil)
-	}
-	method, _ := config.GetAs[string](config.NotificationMethodKey, "none")
-	if method == senderConfig.Name { // 正在使用，重载
-		if err := messageSender.LoadProvider(senderConfig.Name, senderConfig.Addition); err != nil {
-			return nil, rpc.MakeError(rpc.InternalError, "Failed to load message sender provider: "+err.Error(), nil)
-		}
 	}
 	return map[string]any{"message": "Message sender provider set successfully"}, nil
 }

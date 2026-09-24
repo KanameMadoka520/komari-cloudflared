@@ -1,6 +1,8 @@
 package router
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"github.com/komari-monitor/komari/web/api"
 	"github.com/komari-monitor/komari/web/api/admin"
@@ -19,6 +21,9 @@ import (
 func Register(r *gin.Engine) {
 	r.Any("/ping", func(c *gin.Context) {
 		c.String(200, "pong")
+	})
+	r.GET("/admin", func(c *gin.Context) {
+		c.Redirect(http.StatusFound, "/admin/dashboard")
 	})
 
 	registerPublicRoutes(r)
@@ -216,7 +221,6 @@ func registerAdminRoutes(r *gin.Engine) {
 
 	g.GET("/logs", jsonRpc.Bind("admin:getLogs", jsonRpc.WithQuery("limit", "page")))
 
-	// clipboard
 	clipboardGroup := g.Group("/clipboard")
 	{
 		clipboardGroup.GET("/:id", jsonRpc.Bind("admin:getClipboard", jsonRpc.WithPath("id")))
@@ -249,6 +253,9 @@ func registerAdminRoutes(r *gin.Engine) {
 	// notifications
 	notificationGroup := g.Group("/notification")
 	{
+		notificationGroup.GET("/channels", jsonRpc.Bind("admin:listNotificationChannels"))
+		notificationGroup.GET("/channel/configuration", jsonRpc.Bind("admin:getNotificationChannelConfiguration", jsonRpc.WithQuery("id")))
+		notificationGroup.POST("/channel/configuration", jsonRpc.Bind("admin:setNotificationChannelConfiguration"))
 		notificationGroup.GET("/offline", jsonRpc.Bind("admin:listOfflineNotifications"))
 		notificationGroup.POST("/offline/edit", jsonRpc.Bind("admin:editOfflineNotification"))
 		notificationGroup.POST("/offline/enable", jsonRpc.Bind("admin:enableOfflineNotification"))

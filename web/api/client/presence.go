@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	// 如果超过这个时间没有收到任何消息，则认为连接已死
+	// 旧版 Agent 的 WebSocket 仍使用固定读超时。v2 连接改由 ping 续期。
 	readWait        = 11 * time.Second
 	postPresenceTTL = 35 * time.Second
 )

@@ -1,8 +1,10 @@
 {
   "backend": {
     "repository": "komari-monitor/komari",
-    "tag": "1.5.0-fix1",
-    "commit": "0ca87aafd184ed75f9030ede0902772142af5eec"
+    "tag": "main",
+    "commit": "9812acfd11",
+    "release_not_contained": "1.5.1 is a side tag; functional /admin redirect and strip are included via main",
+    "previous_baseline": "1.5.0-fix1 0ca87aafd184ed75f9030ede0902772142af5eec"
   },
   "frontend": {
     "repository": "komari-monitor/komari-web",
@@ -15,7 +17,12 @@
     "Cloudflare Access OAuth",
     "Caddy /media resources",
     "scheduled traffic reports",
-    "legacy v1 agent transport"
+    "legacy v1 agent transport",
+    "traffic billing cycle separate from lifetime totals",
+    "load notifications",
+    "xterm.js settings",
+    "command clipboard",
+    "telegram email bark serverchan javascript notification channels"
   ],
   "validation": "local only; no GitHub Actions"
 }
