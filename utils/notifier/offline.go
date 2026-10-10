@@ -110,7 +110,8 @@ func OfflineNotification(clientID string, endedConnectionID int64) {
 				Event:   messageevent.Offline,
 				Clients: []models.Client{client},
 				Time:    time.Now().UTC(),
-				Emoji:   "🔴",
+				Title:   noticeTitle("offline", map[string]string{"name": clientDisplayName(client)}, nil),
+				Message: noticeBody("offline", map[string]string{"name": clientDisplayName(client)}, nil),
 			}); err != nil {
 				logger.ErrorArgs("notifier", "Failed to send offline notification:", err)
 			}
@@ -183,7 +184,8 @@ func OnlineNotification(clientID string, connectionID int64) {
 			Event:   messageevent.Online,
 			Clients: []models.Client{client},
 			Time:    time.Now().UTC(),
-			Emoji:   "🟢",
+			Title:   noticeTitle("online", map[string]string{"name": clientDisplayName(client)}, nil),
+			Message: noticeBody("online", map[string]string{"name": clientDisplayName(client)}, nil),
 		}); err != nil {
 			logger.ErrorArgs("notifier", "Failed to send online notification:", err)
 		}

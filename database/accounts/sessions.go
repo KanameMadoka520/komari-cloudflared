@@ -2,7 +2,6 @@ package accounts
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/komari-monitor/komari/utils"
 	"github.com/komari-monitor/komari/utils/geoip"
 	"github.com/komari-monitor/komari/utils/messageSender"
+	"github.com/komari-monitor/komari/utils/notifytmpl"
 )
 
 // GetAllSessions 获取所有会话
@@ -48,11 +48,18 @@ func CreateSession(uuid string, expires int, userAgent, ip, login_method string)
 			if ipinfo != nil && ipinfo.Name != "" {
 				loc = ipinfo.Name
 			}
+			loginData := map[string]string{
+				"method": login_method, "ip": ip, "location": loc, "device": userAgent,
+			}
+			title, body, renderErr := notifytmpl.Render("login", loginData, nil)
+			if renderErr != nil {
+				title, body = "🔑 登录提醒", login_method
+			}
 			_ = messageSender.SendNotification(models.EventMessage{
 				Event:   messageevent.Login,
 				Time:    time.Now().UTC(),
-				Message: fmt.Sprintf("%s: %s (%s)\n%s", login_method, ip, loc, userAgent),
-				Emoji:   "🔑",
+				Title:   title,
+				Message: body,
 			})
 		}
 	}()

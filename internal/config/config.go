@@ -21,6 +21,11 @@ func (ConfigItem) TableName() string {
 	return "configs"
 }
 
+// Available 报告配置库是否已经接上。通知模板在测试里没有数据库时使用内置默认值。
+func Available() bool {
+	return db != nil
+}
+
 var (
 	db    *gorm.DB
 	SetDb = func(gdb *gorm.DB) {

@@ -4,10 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/komari-monitor/komari/database/models"
+	messageevent "github.com/komari-monitor/komari/database/models/messageEvent"
 	"github.com/komari-monitor/komari/pkg/jsruntime"
 	"github.com/komari-monitor/komari/utils/messageSender/factory"
+	"github.com/komari-monitor/komari/utils/notifytime"
 )
 
 type JavaScriptSender struct {
@@ -83,28 +87,33 @@ func (j *JavaScriptSender) ensureRuntime() error {
 // fallbackToTextMessage formats structured events for scripts that only
 // implement sendMessage.
 func (j *JavaScriptSender) fallbackToTextMessage(event models.EventMessage) error {
-	message := fmt.Sprintf("%v%v%v\nEvent: %v\nMessage: %v\nTime: %s",
-		event.Emoji, event.Emoji, event.Emoji,
-		event.Event,
-		event.Message,
-		event.Time.UTC().Format("2006-01-02 15:04:05"))
+	when := event.Time
+	if when.IsZero() {
+		when = time.Now().UTC()
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "%v", event.Message)
 	if len(event.Clients) > 0 {
-		clientNames := make([]string, 0, len(event.Clients))
+		if b.Len() > 0 {
+			b.WriteString("\n\n")
+		}
+		b.WriteString("节点")
 		for _, client := range event.Clients {
-			name := client.Name
+			name := strings.TrimSpace(client.Name)
 			if name == "" {
 				name = client.UUID
 			}
-			clientNames = append(clientNames, name)
+			b.WriteString("\n")
+			b.WriteString(name)
 		}
-		message = fmt.Sprintf("%v%v%v\nEvent: %v\nClients: %s\nMessage: %v\nTime: %s",
-			event.Emoji, event.Emoji, event.Emoji,
-			event.Event,
-			clientNames,
-			event.Message,
-			event.Time.UTC().Format("2006-01-02 15:04:05"))
 	}
-	return j.SendTextMessage(message, fmt.Sprint(event.Event))
+	fmt.Fprintf(&b, "\n\n🕐 %s", notifytime.Format(when))
+	emoji := strings.TrimSpace(fmt.Sprint(event.Emoji))
+	title := messageevent.Label(event.Event)
+	if emoji != "" && emoji != "<nil>" {
+		title = emoji + " " + title
+	}
+	return j.SendTextMessage(b.String(), title)
 }
 
 func init() {

@@ -34,7 +34,7 @@ type legacyModelConfig struct {
 	CustomBody                 string  `json:"custom_body" gorm:"type:longtext"`
 	NotificationEnabled        bool    `json:"notification_enabled" gorm:"default:false"`
 	NotificationMethod         string  `json:"notification_method" gorm:"type:varchar(64);default:'none'"`
-	NotificationTemplate       string  `json:"notification_template" gorm:"type:longtext;default:'{{emoji}}{{emoji}}{{emoji}}\nEvent: {{event}}\nClients: {{client}}\nMessage: {{message}}\nTime: {{time}}'"`
+	NotificationTemplate       string  `json:"notification_template" gorm:"type:longtext;default:'{{message}}\n\n🕐 {{time}}'"`
 	ExpireNotificationEnabled  bool    `json:"expire_notification_enabled" gorm:"default:false"`
 	ExpireNotificationLeadDays int     `json:"expire_notification_lead_days" gorm:"default:7"`
 	LoginNotification          bool    `json:"login_notification" gorm:"default:false"`

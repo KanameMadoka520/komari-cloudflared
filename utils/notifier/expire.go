@@ -67,15 +67,18 @@ func CheckExpire() {
 		}
 
 		if len(clientLeadToExpire) > 0 {
-			message := ""
+			nodes := make([]map[string]string, 0, len(clientLeadToExpire))
 			for _, clientInfo := range clientLeadToExpire {
-				message += fmt.Sprintf("• %s (%dd)\n", clientInfo.Name, clientInfo.DaysLeft)
+				nodes = append(nodes, map[string]string{
+					"name": clientInfo.Name,
+					"days": fmt.Sprintf("%d", clientInfo.DaysLeft),
+				})
 			}
 			_ = messageSender.SendNotification(models.EventMessage{
 				Event:   messageevent.Expire,
 				Time:    time.Now().UTC(),
-				Message: message,
-				Emoji:   "⏳",
+				Title:   noticeTitle("expire", nil, nodes),
+				Message: noticeBody("expire", nil, nodes),
 			})
 		}
 	}

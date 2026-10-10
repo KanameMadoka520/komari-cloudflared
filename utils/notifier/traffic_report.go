@@ -17,6 +17,7 @@ import (
 	"github.com/komari-monitor/komari/internal/metricstore"
 	"github.com/komari-monitor/komari/internal/scheduler"
 	"github.com/komari-monitor/komari/utils/messageSender"
+	"github.com/komari-monitor/komari/utils/notifytmpl"
 )
 
 // InitTrafficReportSchedule 注册三个定时任务：日报、周报、月报
@@ -54,21 +55,18 @@ func sendTrafficReport(daily, weekly, monthly bool) {
 	db := dbcore.GetDBInstance()
 	now := time.Now().UTC()
 
-	var eventType, label, suffix string
+	var eventType, label string
 
 	switch {
 	case daily:
 		eventType = messageevent.DReport
 		label = "daily"
-		suffix = "昨日流量"
 	case weekly:
 		eventType = messageevent.WReport
 		label = "weekly"
-		suffix = "上周流量"
 	case monthly:
 		eventType = messageevent.MReport
 		label = "monthly"
-		suffix = "上个月流量"
 	default:
 		return
 	}
@@ -107,8 +105,7 @@ func sendTrafficReport(daily, weekly, monthly bool) {
 		clientMap[c.UUID] = c
 	}
 
-	// 为每个服务器统计流量并拼接消息
-	var lines []string
+	reportLines := make([]trafficReportLine, 0, len(notifications))
 	eventClients := make([]models.Client, 0, len(notifications))
 	for _, n := range notifications {
 		c, ok := clientMap[n.Client]
@@ -122,34 +119,78 @@ func sendTrafficReport(daily, weekly, monthly bool) {
 			continue
 		}
 
-		lines = append(lines, fmt.Sprintf("%s%s：%s", c.Name, suffix, humanBytes(used)))
+		name := strings.TrimSpace(c.Name)
+		if name == "" {
+			name = c.UUID
+		}
+		reportLines = append(reportLines, trafficReportLine{Name: name, Used: used})
 		eventClients = append(eventClients, c)
 	}
 
-	if len(lines) == 0 {
+	if len(reportLines) == 0 {
 		return
 	}
 
-	message := strings.Join(lines, "\n")
-	var emoji string
-	switch {
-	case daily:
-		emoji = "📊"
-	case weekly:
-		emoji = "📈"
-	case monthly:
-		emoji = "📅"
-	}
+	title, message := formatTrafficReport(label, start, end, reportLines)
 
 	if err := messageSender.SendNotification(models.EventMessage{
 		Event:   eventType,
 		Clients: eventClients,
 		Time:    now,
-		Emoji:   emoji,
+		Title:   title,
 		Message: message,
 	}); err != nil {
 		logger.Errorf("notifier", "Failed to send %s traffic report: %v", label, err)
 	}
+}
+
+type trafficReportLine struct {
+	Name string
+	Used int64
+}
+
+func formatTrafficReportMessage(period string, start, end time.Time, lines []trafficReportLine) string {
+	_, body := formatTrafficReport(period, start, end, lines)
+	return body
+}
+
+func formatTrafficReport(period string, start, end time.Time, lines []trafficReportLine) (string, string) {
+	sorted := append([]trafficReportLine(nil), lines...)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		if sorted[i].Used == sorted[j].Used {
+			return sorted[i].Name < sorted[j].Name
+		}
+		return sorted[i].Used > sorted[j].Used
+	})
+	localStart := start.In(time.Local)
+	localEnd := end.In(time.Local)
+	var periodText string
+	id := "traffic_daily"
+	switch period {
+	case "weekly":
+		id = "traffic_weekly"
+		periodText = localStart.Format("2006-01-02") + "  →  " + localEnd.Format("2006-01-02")
+	case "monthly":
+		id = "traffic_monthly"
+		periodText = localStart.Format("2006年1月")
+	default:
+		periodText = localStart.Format("2006-01-02")
+	}
+	nodes := make([]map[string]string, 0, len(sorted))
+	var total int64
+	for _, line := range sorted {
+		total += line.Used
+		nodes = append(nodes, map[string]string{"name": line.Name, "used": humanBytes(line.Used)})
+	}
+	title, body, err := notifytmpl.Render(id, map[string]string{
+		"period": periodText,
+		"count":  fmt.Sprintf("%d", len(sorted)),
+		"total":  humanBytes(total),
+	}, nodes)
+	if err != nil {
+		return "", ""
+	}
+	return title, body
 }
 
 func previousTrafficReportRange(now time.Time, period string) (time.Time, time.Time) {

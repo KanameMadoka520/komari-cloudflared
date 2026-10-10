@@ -10,6 +10,7 @@ import (
 	messageevent "github.com/komari-monitor/komari/database/models/messageEvent"
 	"github.com/komari-monitor/komari/pkg/timeutil"
 	"github.com/komari-monitor/komari/utils/messageSender"
+	"github.com/komari-monitor/komari/utils/notifytmpl"
 	agent_runtime "github.com/komari-monitor/komari/web/agent"
 )
 
@@ -110,12 +111,20 @@ func CheckAndAutoRenewal(client models.Client) {
 			auditlog.EventLog("renewal", fmt.Sprintf("Auto-renewed client: %s until %s",
 				client.Name, timeutil.FormatSystemDate(newExpireTime)))
 
+			renewData := map[string]string{
+				"name":  client.Name,
+				"until": timeutil.FormatSystemDate(newExpireTime),
+			}
+			title, body, renderErr := notifytmpl.Render("renew", renewData, nil)
+			if renderErr != nil {
+				title, body = "🔄 自动续期", client.Name
+			}
 			_ = messageSender.SendNotification(models.EventMessage{
 				Event:   messageevent.Renew,
 				Clients: []models.Client{client},
 				Time:    time.Now().UTC(),
-				Emoji:   "🔄",
-				Message: fmt.Sprintf("• %s until %s\n", client.Name, timeutil.FormatSystemDate(newExpireTime)),
+				Title:   title,
+				Message: body,
 			})
 		}
 	}

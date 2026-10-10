@@ -20,6 +20,7 @@ import (
 	"github.com/komari-monitor/komari/utils"
 	"github.com/komari-monitor/komari/utils/geoip"
 	"github.com/komari-monitor/komari/utils/messageSender"
+	"github.com/komari-monitor/komari/utils/notifytmpl"
 	agent_runtime "github.com/komari-monitor/komari/web/agent"
 	"gorm.io/gorm"
 )
@@ -161,10 +162,15 @@ func adminExec(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcE
 }
 
 func adminTestSendMessage(_ context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+	title, body, err := notifytmpl.Render("test", nil, nil)
+	if err != nil {
+		return nil, rpc.MakeError(rpc.InternalError, "Failed to render test message: "+err.Error(), nil)
+	}
 	if err := messageSender.SendNotification(models.EventMessage{
 		Event:   "Test",
 		Time:    time.Now().UTC(),
-		Message: "This is a test message from Komari.",
+		Title:   title,
+		Message: body,
 	}); err != nil {
 		return nil, rpc.MakeError(rpc.InternalError, "Failed to send message: "+err.Error(), nil)
 	}

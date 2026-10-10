@@ -204,16 +204,22 @@ func sendLoadNotification(clientUUIDs []string, task models.LoadNotification) {
 		return
 	}
 	eventClients := make([]models.Client, 0, len(clientUUIDs))
+	names := make([]string, 0, len(clientUUIDs))
 	for _, uuid := range clientUUIDs {
 		eventClients = append(eventClients, models.Client{UUID: uuid})
+		name := uuid
+		if client, err := clients.GetClientByUUID(uuid); err == nil {
+			name = clientDisplayName(client)
+		}
+		names = append(names, name)
 	}
 	go func() {
 		if err := messageSender.SendNotification(models.EventMessage{
 			Event:   messageevent.Alert,
 			Clients: eventClients,
 			Time:    time.Now().UTC(),
-			Emoji:   "⚠️",
-			Message: task.Name,
+			Title:   noticeTitle("load", loadAlertData(task), loadAlertNodes(names)),
+			Message: noticeBody("load", loadAlertData(task), loadAlertNodes(names)),
 		}); err != nil {
 			logger.Errorf("notifier", "Failed to send load notification for task %d: %v", task.Id, err)
 		}

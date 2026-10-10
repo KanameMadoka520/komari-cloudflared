@@ -10,7 +10,9 @@ import (
 	"github.com/komari-monitor/komari/database/auditlog"
 	"github.com/komari-monitor/komari/database/clients"
 	"github.com/komari-monitor/komari/database/models"
+	messageevent "github.com/komari-monitor/komari/database/models/messageEvent"
 	"github.com/komari-monitor/komari/internal/config"
+	"github.com/komari-monitor/komari/utils/notifytime"
 )
 
 // SendNotification 是通知发送的统一实现：解析事件中的客户端 UUID（外部传入可只含
@@ -43,7 +45,7 @@ func SendEvent(event models.EventMessage) error {
 	var err error
 	cfg, err := config.GetMany(map[string]any{
 		config.NotificationEnabledKey:  false,
-		config.NotificationTemplateKey: "{{emoji}}{{emoji}}{{emoji}}\nEvent: {{event}}\nClients: {{client}}\nMessage: {{message}}\nTime: {{time}}",
+		config.NotificationTemplateKey: DefaultNotificationTemplate,
 	})
 	if err != nil {
 		return err
@@ -64,7 +66,7 @@ func SendEvent(event models.EventMessage) error {
 	}
 	err = CallNotificationChannel(context.Background(), method, Notification{
 		Event:   event,
-		Title:   fmt.Sprint(event.Event),
+		Title:   notificationTitle(event),
 		Message: messageTemplate,
 	})
 	if err == nil {
@@ -103,11 +105,14 @@ func parseTemplate(messageTemplate string, event any) string {
 
 // formatTemplateField 将事件字段格式化为模板占位符的值：
 // 字符串字段直接取值；any 字段取其实际值格式化；Clients 字段拼接客户端名称
-// （无名称时回退为 UUID）；Time 字段按服务器本地时区格式化为 RFC3339；其余类型返回空串。
+// （无名称时回退为 UUID）；Time 字段按通知时区格式化并写上 UTC 偏移；其余类型返回空串。
 func formatTemplateField(fieldName string, v reflect.Value) string {
 	if v.Kind() == reflect.Interface {
 		if v.IsNil() {
 			return ""
+		}
+		if fieldName == "Event" {
+			return messageevent.Label(v.Interface())
 		}
 		return fmt.Sprint(v.Interface())
 	}
@@ -125,11 +130,11 @@ func formatTemplateField(fieldName string, v reflect.Value) string {
 				}
 				clientNames = append(clientNames, name)
 			}
-			return strings.Join(clientNames, ", ")
+			return strings.Join(clientNames, "\n")
 		}
 	case reflect.Struct:
 		if t, ok := v.Interface().(time.Time); ok {
-			return t.In(time.Local).Format("2006-01-02 15:04:05")
+			return notifytime.Format(t)
 		}
 	}
 	return ""

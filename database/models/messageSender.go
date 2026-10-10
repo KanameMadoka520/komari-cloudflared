@@ -13,4 +13,5 @@ type EventMessage struct {
 	Time    time.Time `json:"time"`
 	Message any       `json:"message"`
 	Emoji   any       `json:"emoji"`
+	Title   string    `json:"title,omitempty"`
 }

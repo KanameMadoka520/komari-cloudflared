@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/komari-monitor/komari/utils/messageSender/factory"
 )
@@ -33,9 +35,9 @@ func (t *TelegramSender) Destroy() error {
 }
 
 func (t *TelegramSender) SendTextMessage(message, title string) error {
-	fullMessage := message
-	if title != "" {
-		fullMessage = fmt.Sprintf("<b>%s</b>\n%s", title, message)
+	fullMessage := escapeTelegramHTML(message)
+	if strings.TrimSpace(title) != "" {
+		fullMessage = "<b>" + escapeTelegramHTML(title) + "</b>\n\n" + fullMessage
 	}
 
 	if fullMessage == "" {
@@ -80,6 +82,10 @@ func (t *TelegramSender) SendTextMessage(message, title string) error {
 	}
 
 	return nil
+}
+
+func escapeTelegramHTML(s string) string {
+	return html.EscapeString(s)
 }
 
 func init() {

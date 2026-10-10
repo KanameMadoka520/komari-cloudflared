@@ -7,14 +7,14 @@ import (
 	"github.com/komari-monitor/komari/database/models"
 )
 
-func TestParseTemplateFormatsEventTimeInLocalTimezone(t *testing.T) {
+func TestParseTemplateFormatsEventTimeInNotificationTimezone(t *testing.T) {
 	originalLocal := time.Local
-	time.Local = time.FixedZone("UTC+8", 8*60*60)
+	time.Local = time.UTC
 	t.Cleanup(func() { time.Local = originalLocal })
 
 	eventTime := time.Date(2026, 7, 17, 1, 30, 0, 123456789, time.UTC)
 	got := parseTemplate("{{time}}", models.EventMessage{Time: eventTime})
-	want := "2026-07-17 09:30:00"
+	want := "2026-07-17 09:30:00 UTC+8"
 	if got != want {
 		t.Fatalf("formatted event time = %q, want %q", got, want)
 	}
@@ -25,7 +25,7 @@ func TestParseTemplateFormatsAnyTypedEventField(t *testing.T) {
 		event any
 		want  string
 	}{
-		{event: models.EventMessage{Event: "Offline"}, want: "Offline"},
+		{event: models.EventMessage{Event: "Offline"}, want: "节点离线"},
 		{event: models.EventMessage{Event: 42}, want: "42"},
 		{event: models.EventMessage{Event: nil}, want: ""},
 	} {
