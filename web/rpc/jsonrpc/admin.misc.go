@@ -51,6 +51,11 @@ func init() {
 		Summary: "Get all settings",
 		Returns: "object",
 	})
+	RegisterWithGroupAndMeta("getLastRunVersion", rpc.RoleAdmin, adminGetLastRunVersion, &rpc.MethodMeta{
+		Name:    "admin:getLastRunVersion",
+		Summary: "Get the version recorded before this startup",
+		Returns: "{ last_run_version: string | null }",
+	})
 	RegisterWithGroupAndMeta("editSettings", rpc.RoleAdmin, adminEditSettings, &rpc.MethodMeta{
 		Name:    "admin:editSettings",
 		Summary: "Update settings (partial)",
@@ -112,6 +117,10 @@ func adminGetSettings(_ context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonR
 	}
 	delete(cst, config.CloudflareTunnelTokenKey)
 	return cst, nil
+}
+
+func adminGetLastRunVersion(_ context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+	return map[string]any{"last_run_version": dbcore.LastRunVersion()}, nil
 }
 
 // metricStoreConfigKeys 是与 metrics 独立数据库及 rollup 策略相关、需要
