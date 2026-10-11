@@ -14,10 +14,11 @@ import React from "react";
 import { renderProviderInputs } from "@/utils/renderProviders";
 import { SquareArrowOutUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
+import { DEFAULT_NOTIFICATION_TIMEZONE, NOTIFICATION_TIMEZONES, timezoneMessageKey } from "./timezones";
 
 const NotificationSettings = () => {
   const { t } = useTranslation();
-  const { settings, loading, error } = useSettings();
+  const { settings, loading, error, setSettings } = useSettings();
   const [messageDefs, setMessageDefs] = React.useState<any>({});
   const [messageList, setMessageList] = React.useState<string[]>([]);
   const [currentMessageSender, setCurrentMessageSender] = React.useState<string>("");
@@ -126,6 +127,24 @@ const NotificationSettings = () => {
           async (value) => {
             await updateSettingsWithToast({ notification_template: value }, t);
           }}
+      />
+      <SettingCardSelect
+        title={t("notification.templates.timezone")}
+        description={t("notification.templates.timezone_description")}
+        options={[
+          ...(NOTIFICATION_TIMEZONES as readonly string[]).includes(settings.notification_timezone || DEFAULT_NOTIFICATION_TIMEZONE)
+            ? []
+            : [{ value: settings.notification_timezone, label: settings.notification_timezone }],
+          ...NOTIFICATION_TIMEZONES.map((zone) => ({
+            value: zone,
+            label: t(timezoneMessageKey(zone), { defaultValue: zone }),
+          })),
+        ]}
+        value={settings.notification_timezone || DEFAULT_NOTIFICATION_TIMEZONE}
+        OnSave={async (value: string) => {
+          await updateSettingsWithToast({ notification_timezone: value }, t);
+          setSettings((prev) => ({ ...prev, notification_timezone: value }));
+        }}
       />
       <SettingCardSelect
         title={t("settings.notification.method")}

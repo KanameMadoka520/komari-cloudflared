@@ -782,6 +782,51 @@
       "title": "流量定时报告",
       "visit_plugin_market": "访问插件市场",
       "weekly": "周报"
+    },
+    "templates": {
+      "title": "通知模板",
+      "description": "每种通知可以单独改标题和正文。预览使用样例数据，保存后下一次真实通知会按这里的模板发送。末尾时间按所选时区显示，并写上 UTC 偏移。",
+      "timezone": "时间时区",
+      "timezone_description": "通知里的时间按这个时区换算，并在时间后面写上 UTC 偏移。默认是 UTC+8（亚洲/上海）。也可以填写 UTC+8、+08:00 或 IANA 名称。",
+      "timezone_custom": "使用自定义时区",
+      "timezone_custom_placeholder": "UTC+8、+08:00 或 Asia/Shanghai",
+      "timezone_invalid": "无法识别这个时区，请使用 UTC+8 或 Asia/Shanghai 这类写法",
+      "timezones": {
+        "Asia_Shanghai": "UTC+8 · 亚洲/上海（默认）",
+        "UTCplus8": "UTC+8",
+        "Asia_Hong_Kong": "UTC+8 · 香港",
+        "Asia_Taipei": "UTC+8 · 台北",
+        "Asia_Singapore": "UTC+8 · 新加坡",
+        "Asia_Tokyo": "UTC+9 · 东京",
+        "Asia_Seoul": "UTC+9 · 首尔",
+        "UTC": "UTC+0",
+        "Europe_London": "欧洲/伦敦",
+        "Europe_Paris": "欧洲/巴黎",
+        "America_New_York": "美洲/纽约",
+        "America_Los_Angeles": "美洲/洛杉矶",
+        "Australia_Sydney": "澳洲/悉尼"
+      },
+      "field_title": "标题",
+      "field_body": "正文",
+      "field_node": "重复的节点块",
+      "placeholders": "可用占位符",
+      "preview": "预览",
+      "customized": "已修改",
+      "reset": "恢复默认",
+      "reset_done": "已恢复默认模板",
+      "items": {
+        "traffic_daily": "流量日报",
+        "traffic_weekly": "流量周报",
+        "traffic_monthly": "流量月报",
+        "offline": "节点离线",
+        "online": "节点上线",
+        "traffic_alert": "流量提醒",
+        "expire": "到期提醒",
+        "renew": "自动续期",
+        "load": "负载告警",
+        "login": "登录提醒",
+        "test": "测试消息"
+      }
     }
   },
   "operations": {
@@ -1313,7 +1358,7 @@
         "endpoint_help": "Telegram Bot API 的请求端点，通常为 `https://api.telegram.org/bot`"
       },
       "template": "消息通知模板",
-      "template_description": "Komari 将按照消息通知模板发送通知",
+      "template_description": "正文模板。{{time}} 按所选时区显示，并在时间后面写上 UTC 偏移，默认是 UTC+8。",
       "test_description": "发送测试消息",
       "test_title": "发送测试消息",
       "title": "通知"

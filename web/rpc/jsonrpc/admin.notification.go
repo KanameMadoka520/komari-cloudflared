@@ -11,6 +11,7 @@ import (
 	"github.com/komari-monitor/komari/database/notification"
 	"github.com/komari-monitor/komari/pkg/rpc"
 	"github.com/komari-monitor/komari/utils/messageSender"
+	"github.com/komari-monitor/komari/utils/notifytmpl"
 	"gorm.io/gorm/clause"
 )
 
@@ -37,6 +38,64 @@ func init() {
 	reg("disableTrafficReportNotifications", adminDisableTrafficReport, "Disable traffic report notifications")
 	// send notification
 	reg("sendNotification", adminSendNotification, "Send a notification")
+	reg("listNotificationTemplates", adminListNotificationTemplates, "List editable notification templates")
+	reg("previewNotificationTemplate", adminPreviewNotificationTemplate, "Preview a notification template")
+	reg("setNotificationTemplate", adminSetNotificationTemplate, "Save a notification template")
+	reg("resetNotificationTemplate", adminResetNotificationTemplate, "Reset a notification template")
+}
+
+func adminListNotificationTemplates(_ context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+	list, err := notifytmpl.List()
+	if err != nil {
+		return nil, rpc.MakeError(rpc.InternalError, "Failed to list notification templates: "+err.Error(), nil)
+	}
+	return list, nil
+}
+
+func adminPreviewNotificationTemplate(_ context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+	var params struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+		Body  string `json:"body"`
+		Node  string `json:"node"`
+	}
+	if err := req.BindParams(&params); err != nil {
+		return nil, rpc.MakeError(rpc.InvalidParams, "Invalid request data: "+err.Error(), nil)
+	}
+	preview, err := notifytmpl.PreviewDraft(params.ID, params.Title, params.Body, params.Node)
+	if err != nil {
+		return nil, rpc.MakeError(rpc.InvalidParams, err.Error(), nil)
+	}
+	return preview, nil
+}
+
+func adminSetNotificationTemplate(_ context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+	var params struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+		Body  string `json:"body"`
+		Node  string `json:"node"`
+	}
+	if err := req.BindParams(&params); err != nil {
+		return nil, rpc.MakeError(rpc.InvalidParams, "Invalid request data: "+err.Error(), nil)
+	}
+	if err := notifytmpl.Save(params.ID, params.Title, params.Body, params.Node); err != nil {
+		return nil, rpc.MakeError(rpc.InvalidParams, err.Error(), nil)
+	}
+	return map[string]any{"message": "saved"}, nil
+}
+
+func adminResetNotificationTemplate(_ context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+	var params struct {
+		ID string `json:"id"`
+	}
+	if err := req.BindParams(&params); err != nil {
+		return nil, rpc.MakeError(rpc.InvalidParams, "Invalid request data: "+err.Error(), nil)
+	}
+	if err := notifytmpl.Reset(params.ID); err != nil {
+		return nil, rpc.MakeError(rpc.InvalidParams, err.Error(), nil)
+	}
+	return map[string]any{"message": "reset"}, nil
 }
 
 func adminListNotificationChannels(_ context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {

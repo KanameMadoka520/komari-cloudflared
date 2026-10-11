@@ -19,6 +19,7 @@ import (
 	"github.com/komari-monitor/komari/internal/lifecycle"
 	"github.com/komari-monitor/komari/internal/metricstore"
 	"github.com/komari-monitor/komari/pkg/rpc"
+	"github.com/komari-monitor/komari/utils/notifytime"
 )
 
 // admin.misc.go
@@ -145,6 +146,9 @@ func adminEditSettings(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.
 	}
 	delete(cfg, config.CloudflareTunnelTokenKey)
 	removeRetiredLowResourceMode(cfg)
+	if err := normalizeNotificationTimezone(cfg); err != nil {
+		return nil, rpc.MakeError(rpc.InvalidParams, err.Error(), nil)
+	}
 	if err := validateMetricRollupSettingChanges(cfg); err != nil {
 		return nil, rpc.MakeError(rpc.InvalidParams, err.Error(), nil)
 	}
@@ -266,6 +270,23 @@ func mergedMetricConfig(cfg map[string]interface{}) (*metricstore.MetricStoreCon
 	}
 
 	return merged, nil
+}
+
+func normalizeNotificationTimezone(cfg map[string]interface{}) error {
+	raw, ok := cfg[config.NotificationTimezoneKey]
+	if !ok {
+		return nil
+	}
+	text, ok := raw.(string)
+	if !ok {
+		return fmt.Errorf("invalid notification timezone")
+	}
+	normalized, err := notifytime.Normalize(text)
+	if err != nil {
+		return err
+	}
+	cfg[config.NotificationTimezoneKey] = normalized
+	return nil
 }
 
 func validateMetricRollupSettingChanges(cfg map[string]interface{}) error {

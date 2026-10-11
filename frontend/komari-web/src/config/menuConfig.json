@@ -67,6 +67,11 @@
           "labelKey": "notification.traffic_report.title",
           "path": "/admin/notification/traffic-report",
           "icon": "BarChart2"
+        },
+        {
+          "labelKey": "notification.templates.title",
+          "path": "/admin/notification/templates",
+          "icon": "FileText"
         }
       ]
     },

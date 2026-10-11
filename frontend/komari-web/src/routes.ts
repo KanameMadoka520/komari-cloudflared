@@ -247,6 +247,12 @@ export const routes: RouteObject[] = [
               lazy(() => import("./pages/admin/notification/traffic_report"))
             ),
           },
+          {
+            path: "templates",
+            element: React.createElement(
+              lazy(() => import("./pages/admin/notification/templates"))
+            ),
+          },
         ],
       },
       {

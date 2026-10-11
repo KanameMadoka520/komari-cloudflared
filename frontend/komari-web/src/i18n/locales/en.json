@@ -782,6 +782,51 @@
       "title": "Traffic Report",
       "visit_plugin_market": "Visit Plugin Market",
       "weekly": "Weekly"
+    },
+    "templates": {
+      "title": "Templates",
+      "description": "Each notification has its own title and body. The preview uses sample data. Saved templates are used the next time a real notification is sent. The clock uses the timezone below and includes the UTC offset.",
+      "timezone": "Timezone",
+      "timezone_description": "Notification times are converted to this timezone and labeled with the UTC offset. The default is UTC+8 (Asia/Shanghai). You can also enter UTC+8, +08:00, or an IANA name.",
+      "timezone_custom": "Use custom timezone",
+      "timezone_custom_placeholder": "UTC+8, +08:00, or Asia/Shanghai",
+      "timezone_invalid": "Unrecognized timezone. Use a value such as UTC+8 or Asia/Shanghai",
+      "timezones": {
+        "Asia_Shanghai": "UTC+8 · Asia/Shanghai (default)",
+        "UTCplus8": "UTC+8",
+        "Asia_Hong_Kong": "UTC+8 · Hong Kong",
+        "Asia_Taipei": "UTC+8 · Taipei",
+        "Asia_Singapore": "UTC+8 · Singapore",
+        "Asia_Tokyo": "UTC+9 · Tokyo",
+        "Asia_Seoul": "UTC+9 · Seoul",
+        "UTC": "UTC+0",
+        "Europe_London": "Europe/London",
+        "Europe_Paris": "Europe/Paris",
+        "America_New_York": "America/New York",
+        "America_Los_Angeles": "America/Los Angeles",
+        "Australia_Sydney": "Australia/Sydney"
+      },
+      "field_title": "Title",
+      "field_body": "Body",
+      "field_node": "Repeated node block",
+      "placeholders": "Placeholders",
+      "preview": "Preview",
+      "customized": "Edited",
+      "reset": "Reset",
+      "reset_done": "Restored the default template",
+      "items": {
+        "traffic_daily": "Daily traffic",
+        "traffic_weekly": "Weekly traffic",
+        "traffic_monthly": "Monthly traffic",
+        "offline": "Offline",
+        "online": "Online",
+        "traffic_alert": "Traffic alert",
+        "expire": "Expiration",
+        "renew": "Renewal",
+        "load": "Load alert",
+        "login": "Login",
+        "test": "Test"
+      }
     }
   },
   "operations": {
@@ -1313,7 +1358,7 @@
         "endpoint_help": "Request endpoint for the Telegram Bot API, usually `https://api.telegram.org/bot`"
       },
       "template": "Notification template",
-      "template_description": "Komari will send notifications according to the notification template",
+      "template_description": "Message body. {{time}} uses the selected timezone and includes the UTC offset. The default is UTC+8.",
       "test_description": "Send a test message",
       "test_title": "Send test message",
       "title": "Notifications"

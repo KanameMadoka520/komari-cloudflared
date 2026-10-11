@@ -274,6 +274,10 @@ func registerAdminRoutes(r *gin.Engine) {
 			trafficReport.POST("/enable", jsonRpc.Bind("admin:enableTrafficReportNotifications"))
 			trafficReport.POST("/disable", jsonRpc.Bind("admin:disableTrafficReportNotifications"))
 		}
+		notificationGroup.GET("/templates", jsonRpc.Bind("admin:listNotificationTemplates"))
+		notificationGroup.POST("/templates/preview", jsonRpc.Bind("admin:previewNotificationTemplate"))
+		notificationGroup.POST("/templates", jsonRpc.Bind("admin:setNotificationTemplate"))
+		notificationGroup.POST("/templates/reset", jsonRpc.Bind("admin:resetNotificationTemplate"))
 	}
 
 	// ping tasks
