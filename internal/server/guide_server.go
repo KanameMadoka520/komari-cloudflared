@@ -41,6 +41,7 @@ func (a *App) runGuideServer(controller guideController, cfg guideServerConfig) 
 	defer controller.Deactivate()
 
 	r := gin.New()
+	security.UseRealClientIP(r)
 	r.Use(logger.GinLogger(), logger.GinRecovery(), noStoreAPIResponses())
 	if cfg.requireIdentity {
 		cors := security.NewCorsController(a.settings.CorsOriginCheckEnabled, a.settings.CorsAllowedOrigins)
