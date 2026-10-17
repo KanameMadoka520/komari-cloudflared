@@ -1,6 +1,7 @@
 import "@xterm/xterm/css/xterm.css";
 import { Theme } from "@radix-ui/themes";
 import { TerminalContext } from "@/contexts/TerminalContext";
+import TerminalGuide from "@/components/onboarding/TerminalGuide";
 import TerminalNotices from "./TerminalNotices";
 import TerminalResourceMonitor from "./TerminalResourceMonitor";
 import TerminalTabBar from "./TerminalTabBar";
@@ -14,6 +15,7 @@ const TerminalPage = () => {
   const {
     t,
     resolvedSettings,
+    onboardingAuthenticated,
     appearance,
     clients,
     clientsLoading,
@@ -173,6 +175,11 @@ const TerminalPage = () => {
           onRemove={toggleResourceMonitor}
         />
 
+        <TerminalGuide
+          authenticated={onboardingAuthenticated}
+          hasTabs={!clientsLoading && tabs.length > 0}
+          blocked={Boolean(editorUuid) || serverMenuOpen || workbenchMenuOpen || Boolean(editingTabId)}
+        />
         {editorUuid && (
           <Suspense fallback={null}>
             <FileEditorDialog

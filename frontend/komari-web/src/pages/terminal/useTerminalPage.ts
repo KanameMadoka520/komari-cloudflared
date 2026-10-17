@@ -66,6 +66,7 @@ export const useTerminalPage = () => {
   );
   const [twoFaEnabled, setTwoFaEnabled] = useState(false);
   const [twoFaResolved, setTwoFaResolved] = useState(false);
+  const [onboardingAuthenticated, setOnboardingAuthenticated] = useState(false);
 
   // Search state
   const [searchOpen, setSearchOpen] = useState(false);
@@ -169,12 +170,13 @@ export const useTerminalPage = () => {
     let mounted = true;
     fetch("/api/me")
       .then((response) => response.json())
-      .then((data: { "2fa_enabled"?: boolean }) => {
+      .then((data: { "2fa_enabled"?: boolean; logged_in?: boolean }) => {
         if (!mounted) {
           return;
         }
         const enabled = Boolean(data?.["2fa_enabled"]);
         setTwoFaEnabled(enabled);
+        setOnboardingAuthenticated(data.logged_in === true);
         setTwoFaResolved(true);
       })
       .catch(() => {
@@ -707,7 +709,7 @@ export const useTerminalPage = () => {
   // Global Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (document.querySelector(".km-file-editor")) {
+      if (document.querySelector(".km-file-editor, .km-guide-content")) {
         return;
       }
       const ctrlShift =
@@ -832,6 +834,7 @@ export const useTerminalPage = () => {
   );
 
   return {
+    onboardingAuthenticated,
     t,
     settingsError,
     resolvedSettings,

@@ -4,6 +4,7 @@ package notifications
 
 import (
 	"encoding/json"
+	"errors"
 
 	"github.com/komari-monitor/komari/database"
 	"github.com/komari-monitor/komari/database/models"
@@ -13,7 +14,21 @@ import (
 )
 
 // Initialize registers the built-in webhook channel and seeds its defaults.
-func Initialize() error {
+func Initialize() (err error) {
+	existing := map[string]bool{}
+	for _, item := range messageSender.ListNotificationChannels() {
+		existing[item.ID] = true
+	}
+	defer func() {
+		if err == nil {
+			return
+		}
+		for _, item := range messageSender.ListNotificationChannels() {
+			if !existing[item.ID] {
+				err = errors.Join(err, messageSender.UnregisterNotificationChannel(item.ID))
+			}
+		}
+	}()
 	if err := webhook.Register(); err != nil {
 		return err
 	}

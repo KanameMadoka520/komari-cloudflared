@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/komari-monitor/komari/utils/messageSender/outboundhttp"
+	"os"
 	"strings"
 	"time"
 
@@ -13,6 +15,11 @@ import (
 	"github.com/komari-monitor/komari/utils/messageSender/factory"
 	"github.com/komari-monitor/komari/utils/notifytime"
 )
+
+// DataDir confines Node-compatible script filesystem and module access.
+var DataDir = "./data/notification/javascript"
+
+const executionTimeout = 30 * time.Second
 
 type JavaScriptSender struct {
 	Addition
@@ -28,7 +35,16 @@ func (j *JavaScriptSender) GetConfiguration() factory.Configuration {
 }
 
 func (j *JavaScriptSender) Init() error {
-	runtime, err := jsruntime.New(j.Addition.Script, jsruntime.Options{})
+	if strings.TrimSpace(j.Addition.Script) == "" {
+		return errors.New("JavaScript notification script is not configured")
+	}
+	if err := os.MkdirAll(DataDir, 0755); err != nil {
+		return fmt.Errorf("create JavaScript notification directory: %w", err)
+	}
+	runtime, err := jsruntime.New(j.Addition.Script, jsruntime.Options{
+		BaseDir: DataDir, NodeJS: true, Timeout: executionTimeout,
+		HTTPClient: outboundhttp.NewClient(executionTimeout),
+	})
 	if err != nil {
 		return err
 	}

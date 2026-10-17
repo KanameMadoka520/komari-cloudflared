@@ -1,16 +1,15 @@
 {
   "backend": {
     "repository": "komari-monitor/komari",
-    "tag": "main",
-    "commit": "9812acfd11",
-    "release_not_contained": "1.5.1 is a side tag; functional /admin redirect and strip are included via main",
-    "previous_baseline": "1.5.0-fix1 0ca87aafd184ed75f9030ede0902772142af5eec"
+    "tag": "1.6.0",
+    "commit": "1b76b7ad5bc3de6529bb7f0577069b4ac241fec3",
+    "previous_baseline": "9812acfd11 plus equivalent fixes through 13cbdca"
   },
   "frontend": {
     "repository": "komari-monitor/komari-web",
-    "tag": "1.5.0-fix1",
-    "commit": "3324844cfa347f18c83435f1ccf5634df7e5b768",
-    "previous_source_baseline": "d83b76f"
+    "tag": "1.6.0",
+    "commit": "a96b686bff667d0b04dd0f654842a1caa7aa04c6",
+    "previous_baseline": "3324844cfa347f18c83435f1ccf5634df7e5b768"
   },
   "retained_features": [
     "cloudflared management",
@@ -22,7 +21,15 @@
     "load notifications",
     "xterm.js settings",
     "command clipboard",
-    "telegram email bark serverchan javascript notification channels"
+    "telegram email bark serverchan javascript notification channels",
+    "notification templates and timezone",
+    "real client IP for login notifications"
   ],
-  "validation": "local only; no GitHub Actions"
+  "validation": "local only; no GitHub Actions",
+  "equivalent_adaptations": [
+    "Javascript keeps the legacy provider ID, stored settings and text/event compatibility while enabling the upstream Node-compatible runtime in a confined data directory.",
+    "Keep installed legacy notification channels; omit the upstream forced notification reconfiguration notice.",
+    "Preserve terminal settings, clipboard and load alert routes removed upstream.",
+    "Merge theme, dashboard and guide settings on save; protect notification configuration against stale requests."
+  ]
 }
