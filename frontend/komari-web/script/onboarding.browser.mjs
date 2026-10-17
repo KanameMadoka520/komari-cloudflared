@@ -221,8 +221,12 @@ try {
   await layoutPage.reload();
   await layoutPage.getByRole("button", { name: "自定义", exact: true }).waitFor();
   assert.equal(await layoutPage.locator('[data-widget="database"]').count(), 0);
+  await layoutPage.goto(`${base}/admin/settings/xtermjs`);
+  await layoutPage.getByText('字体族', { exact: true }).waitFor();
+  await layoutPage.goto(`${base}/admin/notification/load`);
+  await layoutPage.locator('.km-page-admin-notification-load').waitFor();
   await layoutContext.close();
-  console.log("PASS dashboard customization, reload and settings preservation");
+  console.log("PASS dashboard customization, reload, settings preservation and retained xterm/load routes");
 
   loggedIn = false;
   const loginContext = await context();
