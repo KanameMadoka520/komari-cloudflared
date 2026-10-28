@@ -1,11 +1,11 @@
-FROM node:22-alpine AS frontend
+FROM node:22.23.4-alpine AS frontend
 WORKDIR /src/frontend/komari-web
 COPY frontend/komari-web/package*.json ./
 RUN npm ci --no-audit --no-fund
 COPY frontend/komari-web/ ./
 RUN npm run build
 
-FROM golang:1.27-alpine AS builder
+FROM golang:1.27.3-alpine AS builder
 WORKDIR /src
 RUN apk add --no-cache gcc musl-dev bash tar zstd
 COPY go.mod go.sum ./
@@ -21,11 +21,11 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
     -ldflags "-s -w -extldflags=-Wl,--strip-all -X github.com/komari-monitor/komari/utils.CurrentVersion=${VERSION} -X github.com/komari-monitor/komari/utils.VersionHash=${BUILD_HASH}" \
     -o /out/komari .
 
-FROM alpine:3.21
+FROM alpine:3.24
 WORKDIR /app
 RUN apk add --no-cache ca-certificates curl tzdata
 ARG TARGETARCH=amd64
-ARG CLOUDFLARED_VERSION=2026.6.0
+ARG CLOUDFLARED_VERSION=2026.10.3
 RUN case "${TARGETARCH}" in amd64|386|arm64|arm) ;; *) exit 1 ;; esac \
     && curl -fsSL "https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-${TARGETARCH}" -o /usr/local/bin/cloudflared \
     && chmod 755 /usr/local/bin/cloudflared
