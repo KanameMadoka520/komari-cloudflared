@@ -3,7 +3,10 @@
     "ai": "Proses pengembangan proyek Komari didukung oleh alat kecerdasan buatan. Alat-alat ini digunakan untuk menjalankan tugas seperti pembuatan kode, refactoring, dan debugging, untuk meningkatkan efisiensi pengembangan dan kualitas kode. Semua kode dan saran yang dihasilkan oleh AI telah diperiksa dan divalidasi oleh pengembang manusia.",
     "open_source": "Komari bersifat open source berdasarkan lisensi MIT dan dibangun menggunakan perangkat lunak open source berikut:",
     "open_source_title": "Lisensi Perangkat Lunak Open Source",
-    "readme_open_in_new_tab": "Buka di tab baru"
+    "readme_open_in_new_tab": "Buka di tab baru",
+    "dependency_scope": "Dependensi langsung dalam manifes proyek; Web mencakup dependensi pengembangan dan tidak menghitung referensi ke dirinya sendiri. Dependensi transitif tidak termasuk.",
+    "development_dependency": "Dependensi pengembangan (klasifikasi manifes)",
+    "twemoji_notice": "Kode: MIT; gambar: CC-BY-4.0; gambar tidak diubah"
   },
   "account": {
     "2fa_disabled": "Autentikasi dua faktor dinonaktifkan",
@@ -874,7 +877,17 @@
     "upload_failed": "Unggahan plugin gagal",
     "uploaded": "Plugin diunggah",
     "uploading": "Mengunggah...",
-    "zip_files_only": "Hanya file .zip yang didukung"
+    "zip_files_only": "Hanya file .zip yang didukung",
+    "market_category": "Kategori plugin",
+    "categories": {
+      "notification": "Saluran notifikasi",
+      "monitoring": "Pemantauan dan peringatan",
+      "network": "Jaringan dan domain",
+      "security": "Login dan keamanan",
+      "integration": "Data dan integrasi",
+      "utility": "Sistem dan utilitas",
+      "uncategorized": "Tanpa kategori"
+    }
   },
   "pprof": {
     "capture_duration": "Durasi pengambilan CPU dan trace",
@@ -1669,7 +1682,7 @@
     "markets": {
       "action": "Jelajahi Plugin",
       "description": "Jelajahi tema di Pasar Tema untuk mengubah tampilan halaman monitoring. Setelah diinstal, kelola di menu 'Tema'.",
-      "plugins_description": "Pasar Plugin menyediakan lebih banyak fitur ekstensi. Setelah diinstal, kelola dan konfigurasikan plugin dari menu 'Plugin'.",
+      "plugins_description": "Pasar Plugin menyediakan lebih banyak fitur plugin. Setelah diinstal, kelola dan konfigurasikan plugin dari menu 'Plugin'.",
       "plugins_title": "Ekstensi Komari dengan Plugin",
       "title": "Jelajahi Pasar Tema"
     },
@@ -1700,5 +1713,19 @@
       "files_title": "Manajemen File Juga Ada di Sini",
       "title": "Coba Workbench Jarak Jauh"
     }
+  },
+  "adminNavigation": {
+    "operations": "Pemantauan & operasi",
+    "system": "Pengaturan sistem",
+    "security": "Akun & keamanan",
+    "site": "Pengaturan situs",
+    "general": "Pengaturan umum",
+    "login": "Autentikasi",
+    "profile": "Profil",
+    "sessions": "Sesi login",
+    "pluginSettings": "Pengaturan plugin",
+    "events": "Notifikasi peristiwa",
+    "pluginFeatures": "Fitur plugin",
+    "extensions": "Tampilan & plugin"
   }
 }

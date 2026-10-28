@@ -1,14 +1,14 @@
 {
   "backend": {
     "repository": "komari-monitor/komari",
-    "tag": "1.6.0",
-    "commit": "1b76b7ad5bc3de6529bb7f0577069b4ac241fec3",
+    "tag": "1.6.1",
+    "commit": "96cf0f79d8cfdf6cc8be54fd1976bbc026d58f7f",
     "previous_baseline": "9812acfd11 plus equivalent fixes through 13cbdca"
   },
   "frontend": {
     "repository": "komari-monitor/komari-web",
-    "tag": "1.6.0",
-    "commit": "a96b686bff667d0b04dd0f654842a1caa7aa04c6",
+    "tag": "1.6.1",
+    "commit": "797ca79daee6eac59164013e18bf5d098df9238c",
     "previous_baseline": "3324844cfa347f18c83435f1ccf5634df7e5b768"
   },
   "retained_features": [
@@ -30,6 +30,8 @@
     "Javascript keeps the legacy provider ID, stored settings and text/event compatibility while enabling the upstream Node-compatible runtime in a confined data directory.",
     "Keep installed legacy notification channels; omit the upstream forced notification reconfiguration notice.",
     "Preserve terminal settings, clipboard and load alert routes removed upstream.",
-    "Merge theme, dashboard and guide settings on save; protect notification configuration against stale requests."
+    "Merge theme, dashboard and guide settings on save; protect notification configuration against stale requests.",
+    "1.6.1: retain safe traffic thresholds, nil-report guard, Node child output drain fix, and custom navigation while adopting MoeJS and unified metric queries.",
+    "Retain October 24 security dependency/toolchain versions; never replace production with the official image."
   ]
 }

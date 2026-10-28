@@ -1,3 +1,4 @@
+import Loading from "@/components/loading";
 import type {
   MouseEvent as ReactMouseEvent,
   RefObject,
@@ -133,11 +134,11 @@ const TerminalWorkspace = ({
             ))}
           {tabs.length === 0 && (
             <div className="km-terminal-empty-state flex h-full w-full flex-col items-center justify-center gap-3">
-              <strong className="text-neutral-400">
-                {clientsLoading
-                  ? t("terminal.tabs.loading_servers", "Loading servers...")
-                  : t("terminal.tabs.empty_title")}
-              </strong>
+              {clientsLoading ? (
+                <Loading compact />
+              ) : (
+                <strong className="text-neutral-400">{t("terminal.tabs.empty_title")}</strong>
+              )}
               <div className={`flex items-center gap-2 ${clientsLoading ? "opacity-40 pointer-events-none" : ""}`}>
                 <button
                   onClick={onOpenTerminalMenu}
@@ -158,7 +159,7 @@ const TerminalWorkspace = ({
           )}
           {tabs.length > 0 && !sessionsReady && (
             <div className="km-terminal-loading-state absolute inset-0 z-[3] flex flex-col items-center justify-center gap-2.5 text-sm text-neutral-400">
-              {t("terminal.tabs.connecting")}
+              <Loading compact />
             </div>
           )}
         </div>

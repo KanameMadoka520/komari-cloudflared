@@ -3,7 +3,10 @@
     "ai": "Komari 專案的開發過程得到了人工智慧工具的輔助。這些工具被用於執行程式碼生成、重構和除錯等任務，以提高開發效率和程式碼品質。所有由 AI 生成的程式碼和建議都經過了人類開發者的審查與驗證。",
     "open_source": "Komari 基於 MIT 協議開源，並使用了以下開源軟體構建：",
     "open_source_title": "開源軟體許可協議",
-    "readme_open_in_new_tab": "在新標籤頁中開啟"
+    "readme_open_in_new_tab": "在新標籤頁中開啟",
+    "dependency_scope": "統計各專案清單中宣告的直接相依套件；Web 包含開發相依套件，不包含專案自身引用。間接相依套件不計入此清單。",
+    "development_dependency": "開發相依套件（依清單分類）",
+    "twemoji_notice": "程式碼採用 MIT，圖像採用 CC-BY-4.0；圖像未修改"
   },
   "account": {
     "2fa_disabled": "雙重身份驗證已禁用",
@@ -874,7 +877,17 @@
     "upload_failed": "外掛上傳失敗",
     "uploaded": "外掛已上傳",
     "uploading": "上傳中...",
-    "zip_files_only": "僅支援 .zip 檔案"
+    "zip_files_only": "僅支援 .zip 檔案",
+    "market_category": "外掛分類",
+    "categories": {
+      "notification": "通知管道",
+      "monitoring": "監控與警報",
+      "network": "網路與網域",
+      "security": "登入與安全",
+      "integration": "資料與整合",
+      "utility": "系統與工具",
+      "uncategorized": "未分類"
+    }
   },
   "pprof": {
     "capture_duration": "CPU 與 trace 擷取時長",
@@ -1691,7 +1704,7 @@
       "title": "逛逛主題市場",
       "description": "在主題市場瀏覽主題，為監控頁面更換外觀。安裝後可在「主題」選單中管理。",
       "plugins_title": "用外掛擴充 Komari",
-      "plugins_description": "外掛市場提供更多擴充功能。安裝後，可從「外掛」選單管理和設定外掛。",
+      "plugins_description": "外掛市場提供更多外掛功能。安裝後，可從「外掛」選單管理和設定外掛。",
       "action": "瀏覽外掛"
     },
     "terminal": {
@@ -1700,5 +1713,19 @@
       "tools_title": "檔案、搜尋與資源監控",
       "tools_description": "同一個右鍵選單還提供文字搜尋、匯出終端內容、檔案管理、編輯器和資源監控。關閉指引後，右鍵 Tab 試試吧。"
     }
+  },
+  "adminNavigation": {
+    "operations": "監控與維運",
+    "system": "系統設定",
+    "security": "帳號與安全",
+    "site": "站台設定",
+    "general": "一般設定",
+    "login": "登入驗證",
+    "profile": "個人帳戶",
+    "sessions": "登入工作階段",
+    "pluginSettings": "外掛設定",
+    "events": "事件通知",
+    "pluginFeatures": "外掛功能",
+    "extensions": "外觀與外掛"
   }
 }

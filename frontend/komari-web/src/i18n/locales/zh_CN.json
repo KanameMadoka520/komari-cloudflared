@@ -3,7 +3,10 @@
     "ai": "Komari 项目的开发过程得到了人工智能工具的辅助。这些工具被用于执行代码生成、重构和调试等任务，以提高开发效率和代码质量。所有由 AI 生成的代码和建议都经过了人类开发者的审查与验证。",
     "open_source": "Komari 基于 MIT 协议开源，并使用了以下开源软件构建：",
     "open_source_title": "开源软件许可协议",
-    "readme_open_in_new_tab": "在新标签页中打开"
+    "readme_open_in_new_tab": "在新标签页中打开",
+    "dependency_scope": "统计各项目清单中声明的直接依赖；Web 包含开发依赖，不包含本项目的自引用。间接依赖不计入此清单，未声明不代表未被间接使用。",
+    "development_dependency": "开发依赖（按清单分类）",
+    "twemoji_notice": "代码采用 MIT，图像采用 CC-BY-4.0；图像未修改"
   },
   "account": {
     "2fa_disabled": "双重身份验证已禁用",
@@ -919,7 +922,17 @@
     "upload_failed": "插件上传失败",
     "uploaded": "插件已上传",
     "uploading": "上传中...",
-    "zip_files_only": "仅支持 .zip 文件"
+    "zip_files_only": "仅支持 .zip 文件",
+    "categories": {
+      "integration": "数据与集成",
+      "monitoring": "监控与告警",
+      "network": "网络与域名",
+      "notification": "通知渠道",
+      "security": "登录与安全",
+      "uncategorized": "未分类",
+      "utility": "系统与工具"
+    },
+    "market_category": "插件分类"
   },
   "pprof": {
     "capture_duration": "CPU 与 trace 采集时长",
@@ -1747,7 +1760,7 @@
     "markets": {
       "action": "浏览插件",
       "description": "在主题市场浏览主题，为监控页面更换外观。安装后可在「主题」菜单中管理。",
-      "plugins_description": "插件市场提供更多扩展功能。安装后，可从「插件」菜单管理和配置插件。",
+      "plugins_description": "插件市场提供更多插件功能。安装后，可从「插件」菜单管理和配置插件。",
       "plugins_title": "用插件扩展 Komari",
       "title": "逛逛主题市场"
     },
@@ -1778,5 +1791,19 @@
       "files_title": "文件管理也在这里",
       "title": "试试远程工作台"
     }
+  },
+  "adminNavigation": {
+    "events": "事件通知",
+    "extensions": "外观与插件",
+    "general": "通用设置",
+    "login": "登录认证",
+    "operations": "监控与运维",
+    "pluginFeatures": "插件功能",
+    "pluginSettings": "插件设置",
+    "profile": "个人账户",
+    "security": "账号与安全",
+    "sessions": "登录会话",
+    "site": "站点设置",
+    "system": "系统设置"
   }
 }

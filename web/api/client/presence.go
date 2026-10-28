@@ -45,10 +45,9 @@ func refreshPostPresence(uuid string) {
 	agent_runtime.KeepAlivePresence(uuid, connID, postPresenceTTL)
 	go notifier.OnlineNotification(uuid, connID)
 
-	defaultGeneration := uint64(0)
-	entry := &postPresenceEntry{connID: connID, generation: defaultGeneration}
+	entry := &postPresenceEntry{connID: connID}
 	entry.timer = time.AfterFunc(postPresenceTTL, func() {
-		postPresenceExpired(uuid, connID, defaultGeneration)
+		postPresenceExpired(uuid, connID, 0)
 	})
 	postPresenceStates[uuid] = entry
 }

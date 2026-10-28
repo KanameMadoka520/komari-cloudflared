@@ -238,7 +238,7 @@ const InnerLayout = () => {
   };
 
   if (onLoading || onNodeLoading) {
-    return <Loading text={t("loading")} />;
+    return <Loading />;
   }
   if (onError || onNodeError) {
     return <div>{t("common.error")}: {onError?.message || onNodeError}</div>;

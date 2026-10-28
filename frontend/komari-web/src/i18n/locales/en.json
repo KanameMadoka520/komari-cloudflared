@@ -3,7 +3,10 @@
     "ai": "The development process of the Komari project has been assisted by artificial intelligence tools. These tools are used for tasks such as code generation, refactoring, and debugging to improve development efficiency and code quality. All AI-generated code and suggestions have been reviewed and validated by human developers.",
     "open_source": "Komari is open source under the MIT license and is built using the following open source software:",
     "open_source_title": "Open Source Software License",
-    "readme_open_in_new_tab": "Open in new tab"
+    "readme_open_in_new_tab": "Open in new tab",
+    "dependency_scope": "Direct dependencies declared in project manifests; Web includes development dependencies and excludes its self-reference. Transitive dependencies are not included in these counts.",
+    "development_dependency": "Development dependency (manifest classification)",
+    "twemoji_notice": "Code: MIT; graphics: CC-BY-4.0; graphics unmodified"
   },
   "account": {
     "2fa_disabled": "Two-factor authentication is disabled",
@@ -919,7 +922,17 @@
     "upload_failed": "Plugin upload failed",
     "uploaded": "Plugin uploaded",
     "uploading": "Uploading...",
-    "zip_files_only": "Only .zip files are supported"
+    "zip_files_only": "Only .zip files are supported",
+    "market_category": "Plugin category",
+    "categories": {
+      "notification": "Notifications",
+      "monitoring": "Monitoring and alerts",
+      "network": "Network and domains",
+      "security": "Login and security",
+      "integration": "Data and integrations",
+      "utility": "System and utilities",
+      "uncategorized": "Uncategorized"
+    }
   },
   "pprof": {
     "capture_duration": "CPU and trace capture duration",
@@ -1778,5 +1791,19 @@
       "tools_title": "Files, search and monitoring",
       "tools_description": "The same menu provides text search, terminal export, file management, the editor and resource monitoring. Dismiss this tour and right-click a tab to try it."
     }
+  },
+  "adminNavigation": {
+    "operations": "Monitoring & operations",
+    "system": "System settings",
+    "security": "Account & security",
+    "site": "Site settings",
+    "general": "General settings",
+    "login": "Authentication",
+    "profile": "Profile",
+    "sessions": "Login sessions",
+    "pluginSettings": "Plugin settings",
+    "events": "Event notifications",
+    "pluginFeatures": "Plugin features",
+    "extensions": "Appearance & plugins"
   }
 }

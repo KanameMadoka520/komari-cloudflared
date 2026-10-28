@@ -13,7 +13,7 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
 COPY --from=frontend /src/frontend/komari-web/dist ./frontend/komari-web/dist
 RUN bash scripts/pack-frontend.sh
-ARG VERSION=1.6.0-cloudflared.1
+ARG VERSION=1.6.1-cloudflared.1
 ARG BUILD_HASH=unknown
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64

@@ -37,7 +37,7 @@ go.work.sum
 komari
 /dist/
 .codex
-
+.gocache/
 /web/filemanager/data
 # Local-only build and development artifacts
 /node_modules/

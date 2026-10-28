@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export CGO_ENABLED=1
-VERSION="${VERSION:-1.6.0-cloudflared.1}"
+VERSION="${VERSION:-1.6.1-cloudflared.1}"
 BUILD_HASH="${BUILD_HASH:-$(git rev-parse --short=12 HEAD)}"
 if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then BUILD_HASH="${BUILD_HASH}-dirty"; fi
 npm ci --no-audit --no-fund --prefix frontend/komari-web
