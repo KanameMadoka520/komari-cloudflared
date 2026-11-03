@@ -255,7 +255,7 @@ func TestWriteReportStoresMinuteMetricsAndResetAwareTraffic(t *testing.T) {
 		Swap:        v2.RamReport{Used: 20, Total: 200},
 		Load:        v2.LoadReport{Load1: 0.5},
 		Disk:        v2.DiskReport{Used: 300, Total: 3000},
-		Network:     v2.NetworkReport{Up: 3, Down: 4, TotalUp: 100, TotalDown: 200},
+		Network:     v2.NetworkReport{Up: 3, Down: 4, TotalUp: 100, TotalDown: 200, CounterEpoch: 1},
 		Process:     7,
 		Connections: v2.ConnectionsReport{TCP: 8, UDP: 9},
 		GPU: &v2.GPUDetailReport{
@@ -277,6 +277,7 @@ func TestWriteReportStoresMinuteMetricsAndResetAwareTraffic(t *testing.T) {
 	}
 
 	report.UpdatedAt = base.Add(6 * time.Second)
+	report.Network.CounterEpoch = 2
 	report.Network.TotalUp = 20
 	report.Network.TotalDown = 30
 	if _, err := WriteReport(ctx, report); err != nil {
@@ -557,12 +558,12 @@ func TestTrafficCounterDelta(t *testing.T) {
 		{name: "previous zero", current: 120, previous: 0, want: 120},
 		{name: "monotonic counter", current: 250, previous: 200, want: 50},
 		{name: "unchanged counter", current: 100, previous: 100, want: 0},
-		{name: "counter reset", current: 15, previous: 250, want: 15},
+		{name: "ambiguous decrease", current: 15, previous: 250, want: 0},
 		{name: "negative current", current: -1, previous: 100, want: 0},
 		{name: "negative previous", current: 15, previous: -1, want: 0},
 		{name: "tb-scale monotonic", current: 2*oneTB + 5*oneGB, previous: 2 * oneTB, want: 5 * oneGB},
-		{name: "32-bit wrap leftover", current: 800_000_000, previous: 3*oneGB + 900_000_000, want: 800_000_000},
-		{name: "reboot leftover below cap", current: 8 * oneGB, previous: 2 * oneTB, want: 8 * oneGB},
+		{name: "32-bit wrap leftover", current: 800_000_000, previous: 3*oneGB + 900_000_000, want: 0},
+		{name: "reboot leftover below cap", current: 8 * oneGB, previous: 2 * oneTB, want: 0},
 		{name: "tb-scale tiny dip", current: 2*oneTB - 100, previous: 2 * oneTB, want: 0},
 		{name: "tb-scale false reset", current: 2*oneTB + 5*oneGB - 1000, previous: 2*oneTB + 5*oneGB, want: 0},
 	}
@@ -706,7 +707,7 @@ func TestWriteReportCountsTrafficAfterHighRateCounterWrap(t *testing.T) {
 		UUID:      "wrap-node",
 		UpdatedAt: base,
 		Uptime:    10_000,
-		Network:   v2.NetworkReport{TotalUp: 3*oneGB + 900_000_000, TotalDown: 3*oneGB + 800_000_000},
+		Network:   v2.NetworkReport{TotalUp: 3*oneGB + 900_000_000, TotalDown: 3*oneGB + 800_000_000, CounterEpoch: 1, CounterBits: 32},
 	}
 	if _, err := WriteReport(ctx, report); err != nil {
 		t.Fatalf("write first report: %v", err)
@@ -720,8 +721,8 @@ func TestWriteReportCountsTrafficAfterHighRateCounterWrap(t *testing.T) {
 		t.Fatalf("write wrapped report: %v", err)
 	}
 
-	assertMetricValues(t, s, MetricTrafficUp, report.UUID, base.Add(-time.Second), base.Add(time.Minute), []float64{0, 800_000_000})
-	assertMetricValues(t, s, MetricTrafficDown, report.UUID, base.Add(-time.Second), base.Add(time.Minute), []float64{0, 900_000_000})
+	assertMetricValues(t, s, MetricTrafficUp, report.UUID, base.Add(-time.Second), base.Add(time.Minute), []float64{0, (1 << 32) - 3_900_000_000 + 800_000_000})
+	assertMetricValues(t, s, MetricTrafficDown, report.UUID, base.Add(-time.Second), base.Add(time.Minute), []float64{0, (1 << 32) - 3_800_000_000 + 900_000_000})
 }
 
 func TestWriteReportIgnoresTinyDipOfTBScaleCounter(t *testing.T) {
@@ -766,8 +767,8 @@ func TestWriteReportIgnoresTinyDipOfTBScaleCounter(t *testing.T) {
 		t.Fatalf("write recovered report: %v", err)
 	}
 
-	assertMetricValues(t, s, MetricTrafficUp, report.UUID, base.Add(-time.Second), base.Add(time.Minute), []float64{0, float64(5 * oneGB), 0, float64(oneGB + 1000)})
-	assertMetricValues(t, s, MetricTrafficDown, report.UUID, base.Add(-time.Second), base.Add(time.Minute), []float64{0, float64(7 * oneGB), 0, float64(oneGB + 2000)})
+	assertMetricValues(t, s, MetricTrafficUp, report.UUID, base.Add(-time.Second), base.Add(time.Minute), []float64{0, float64(5 * oneGB), 0, float64(oneGB)})
+	assertMetricValues(t, s, MetricTrafficDown, report.UUID, base.Add(-time.Second), base.Add(time.Minute), []float64{0, float64(7 * oneGB), 0, float64(oneGB)})
 }
 
 func TestWriteReportNormalizesReceiveTimeToUTC(t *testing.T) {

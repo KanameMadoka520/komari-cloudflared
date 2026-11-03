@@ -353,6 +353,7 @@ func getNodesLatestStatus(ctx context.Context, req *rpc.JsonRpcRequest) (any, *r
 		TrafficUsedUp       int64               `json:"traffic_used_up"`
 		TrafficUsedDown     int64               `json:"traffic_used_down"`
 		TrafficUsedTotal    int64               `json:"traffic_used_total"`
+		TrafficIncomplete   bool                `json:"traffic_incomplete"`
 		TrafficTotalMode    bool                `json:"traffic_total_mode"`
 		TrafficLifetimeUp   int64               `json:"traffic_lifetime_up"`
 		TrafficLifetimeDown int64               `json:"traffic_lifetime_down"`
@@ -378,10 +379,12 @@ func getNodesLatestStatus(ctx context.Context, req *rpc.JsonRpcRequest) (any, *r
 		lifetimeUp, lifetimeDown := effectiveUp, effectiveDown
 		effectiveTotal := clients.TrafficByType("max", effectiveUp, effectiveDown)
 		totalMode := false
+		incomplete := false
 		if client, ok := clientByUUID[uuid]; ok {
 			lifetimeUp, lifetimeDown = clients.LifetimeTraffic(client, effectiveUp, effectiveDown)
 			effectiveTotal = clients.EffectiveTrafficTotal(client, effectiveUp, effectiveDown)
 			totalMode = client.TrafficInitialTotal != nil
+			incomplete = client.TrafficIncomplete
 			effectiveUp, effectiveDown = clients.EffectiveTraffic(client, effectiveUp, effectiveDown)
 		}
 		rl := recordLike{
@@ -407,6 +410,7 @@ func getNodesLatestStatus(ctx context.Context, req *rpc.JsonRpcRequest) (any, *r
 			TrafficUsedDown:   effectiveDown,
 			TrafficUsedTotal:  effectiveTotal,
 			TrafficTotalMode:  totalMode,
+			TrafficIncomplete: incomplete,
 			TrafficLifetimeUp: lifetimeUp, TrafficLifetimeDown: lifetimeDown,
 			Process:        rep.Process,
 			Connections:    rep.Connections.TCP + rep.Connections.UDP,

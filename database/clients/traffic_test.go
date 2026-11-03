@@ -1,6 +1,8 @@
 package clients
 
 import (
+	"encoding/json"
+	"github.com/komari-monitor/komari/internal/trafficcounter"
 	"testing"
 	"time"
 
@@ -23,11 +25,11 @@ func TestEffectiveTrafficUsesConfiguredCycle(t *testing.T) {
 	}
 }
 
-func TestEffectiveTrafficHandlesAgentCounterReset(t *testing.T) {
+func TestEffectiveTrafficDoesNotGuessResetWithoutObservation(t *testing.T) {
 	resetAt := time.Unix(100, 0)
 	client := models.Client{TrafficResetAt: &resetAt, TrafficResetUp: 1000, TrafficResetDown: 2000, TrafficInitialUp: 7, TrafficInitialDown: 9}
 	up, down := EffectiveTraffic(client, 12, 34)
-	if up != 19 || down != 43 {
+	if up != 7 || down != 9 {
 		t.Fatalf("unexpected reboot-adjusted usage: up=%d down=%d", up, down)
 	}
 }
@@ -42,11 +44,12 @@ func TestEffectiveTrafficKeepsLegacyClientsUnchanged(t *testing.T) {
 func TestCycleSurvivesMultipleCounterResets(t *testing.T) {
 	at := time.Unix(100, 0).UTC()
 	c := models.Client{UUID: "node", TrafficResetAt: &at, TrafficObservedAt: &at, TrafficResetUp: 1000, TrafficResetDown: 2000, TrafficUsedUp: 40, TrafficUsedDown: 60}
+	setTestEpoch(&c, 1)
 	samples := []struct{ up, down, wantUp, wantDown int64 }{
 		{1100, 2200, 140, 260}, {10, 20, 150, 280}, {1200, 2300, 1340, 2560}, {0, 10, 1340, 2570}, {2, 12, 1342, 2572},
 	}
 	for i, s := range samples {
-		r := v2.Report{UpdatedAt: at.Add(time.Duration(i+1) * time.Second), Network: v2.NetworkReport{TotalUp: s.up, TotalDown: s.down}}
+		r := v2.Report{UpdatedAt: at.Add(time.Duration(i+1) * time.Second), Network: v2.NetworkReport{TotalUp: s.up, TotalDown: s.down, CounterEpoch: []uint64{1, 2, 2, 3, 3}[i]}}
 		if !advanceTraffic(&c, r) {
 			t.Fatal("report skipped")
 		}
@@ -68,7 +71,8 @@ func TestProviderTotalUsesBillingRuleWithoutInventingSplit(t *testing.T) {
 	initial := int64(120 * 1024 * 1024 * 1024)
 	c := models.Client{TrafficResetAt: &at, TrafficObservedAt: &at, TrafficInitialTotal: &initial,
 		TrafficResetUp: 1000, TrafficResetDown: 2000}
-	report := v2.Report{UpdatedAt: at.Add(time.Second), Network: v2.NetworkReport{TotalUp: 1000 + 1024*1024*1024, TotalDown: 2000 + 2*1024*1024*1024}}
+	setTestEpoch(&c, 1)
+	report := v2.Report{UpdatedAt: at.Add(time.Second), Network: v2.NetworkReport{TotalUp: 1000 + 1024*1024*1024, TotalDown: 2000 + 2*1024*1024*1024, CounterEpoch: 1}}
 	advanceTraffic(&c, report)
 	for _, tc := range []struct {
 		rule  string
@@ -85,6 +89,7 @@ func TestProviderTotalUsesBillingRuleWithoutInventingSplit(t *testing.T) {
 	c.TrafficLimitType = "sum"
 	report.UpdatedAt = report.UpdatedAt.Add(time.Second)
 	report.Network.TotalUp, report.Network.TotalDown = 5, 7
+	report.Network.CounterEpoch = 2
 	advanceTraffic(&c, report)
 	if got := EffectiveTrafficTotal(c, 0, 0); got != initial+3*1024*1024*1024+12 {
 		t.Fatalf("counter reset lost provider usage: %d", got)
@@ -102,8 +107,9 @@ func TestProviderTotalUsesBillingRuleWithoutInventingSplit(t *testing.T) {
 func TestLifetimeTrafficSurvivesCounterResetAndBillingReset(t *testing.T) {
 	at := time.Unix(100, 0).UTC()
 	c := models.Client{TrafficLifetimeAt: &at, TrafficLifetimeRawUp: 1000, TrafficLifetimeRawDown: 2000, TrafficLifetimeUp: 5000, TrafficLifetimeDown: 7000}
+	setTestEpoch(&c, 1)
 	for i, sample := range []struct{ up, down, wantUp, wantDown int64 }{{1100, 2200, 5100, 7200}, {10, 20, 5110, 7220}, {1200, 2300, 6300, 9500}} {
-		report := v2.Report{UpdatedAt: at.Add(time.Duration(i+1) * time.Second), Network: v2.NetworkReport{TotalUp: sample.up, TotalDown: sample.down}}
+		report := v2.Report{UpdatedAt: at.Add(time.Duration(i+1) * time.Second), Network: v2.NetworkReport{TotalUp: sample.up, TotalDown: sample.down, CounterEpoch: []uint64{1, 2, 2}[i]}}
 		advanceLifetime(&c, report)
 		up, down := LifetimeTraffic(c, sample.up, sample.down)
 		if up != sample.wantUp || down != sample.wantDown {
@@ -117,4 +123,23 @@ func TestLifetimeTrafficSurvivesCounterResetAndBillingReset(t *testing.T) {
 	if up, down := LifetimeTraffic(c, 0, 0); up != 6300 || down != 9500 {
 		t.Fatalf("billing reset changed lifetime %d/%d", up, down)
 	}
+}
+
+// These wrappers exercise the production shared transition, not a separate
+// accounting algorithm. Explicit epochs in fixtures prove actual resets.
+func advanceTraffic(c *models.Client, r v2.Report) bool {
+	changed, err := advanceClientTraffic(c, &r)
+	if err != nil {
+		panic(err)
+	}
+	return changed
+}
+func advanceLifetime(c *models.Client, r v2.Report) bool { return advanceTraffic(c, r) }
+func setTestEpoch(c *models.Client, epoch uint64) {
+	up, down := c.TrafficResetUp, c.TrafficResetDown
+	if c.TrafficLifetimeAt != nil {
+		up, down = c.TrafficLifetimeRawUp, c.TrafficLifetimeRawDown
+	}
+	b, _ := json.Marshal(trafficcounter.State{Initialized: true, Up: trafficcounter.Direction{HighWater: up}, Down: trafficcounter.Direction{HighWater: down}, Epoch: epoch})
+	c.TrafficCounterState = string(b)
 }

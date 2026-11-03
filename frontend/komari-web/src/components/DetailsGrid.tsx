@@ -77,7 +77,7 @@ export const DetailsGrid = ({
           )}/s`}
         />
         <UpDownStack
-          up={t("nodeCard.totalTraffic")}
+          up={`${t("nodeCard.totalTraffic")}${currentRecord?.network.incomplete ? ` · ${t("trafficCycle.incomplete")}` : ""}`}
           align={align === "center" ? "end" : "start"}
           className="km-details-item flex-[0_0_calc(50%-0.5rem)]"
             down={`↑

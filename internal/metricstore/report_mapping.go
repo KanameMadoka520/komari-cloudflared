@@ -30,6 +30,23 @@ func reportMetricPoints(report v2.Report, trafficUp, trafficDown int64) []metric
 		{MetricName: MetricConnections, EntityID: entityID, Timestamp: ts, Value: float64(report.Connections.TCP)},
 		{MetricName: MetricConnectionsUDP, EntityID: entityID, Timestamp: ts, Value: float64(report.Connections.UDP)},
 	}
+	if report.Traffic != nil {
+		uncertain := float64(0)
+		if report.Traffic.Uncertain || report.Traffic.Gap {
+			uncertain = 1
+		}
+		points = append(points,
+			metric.Point{MetricName: MetricTrafficHighUp, EntityID: entityID, Timestamp: ts, Value: float64(report.Traffic.HighWaterUp)},
+			metric.Point{MetricName: MetricTrafficHighDown, EntityID: entityID, Timestamp: ts, Value: float64(report.Traffic.HighWaterDown)},
+			metric.Point{MetricName: MetricTrafficUncertain, EntityID: entityID, Timestamp: ts, Value: uncertain},
+		)
+	}
+	if report.Traffic != nil && report.Traffic.HasLifetime {
+		points = append(points,
+			metric.Point{MetricName: MetricTrafficAcceptedUp, EntityID: entityID, Timestamp: ts, Value: float64(report.Traffic.LifetimeUp)},
+			metric.Point{MetricName: MetricTrafficAcceptedDown, EntityID: entityID, Timestamp: ts, Value: float64(report.Traffic.LifetimeDown)},
+		)
+	}
 	if report.GPU == nil {
 		return points
 	}
@@ -108,26 +125,13 @@ func GetLatestTrafficBefore(ctx context.Context, entityIDs []string, before time
 	return result, nil
 }
 
-// maxResetAwareDelta is the largest per-sample increase accepted when a
-// counter appears to reset. A "reset" whose current value is larger than this
-// is treated as jitter of a still-huge counter, not a wrap or reboot leftover.
-const maxResetAwareDelta int64 = 64 << 30
-
-// TrafficCounterDelta returns a reset-aware increase between two cumulative
-// traffic counters. After a wrap or reboot, the current counter is the new
-// increase. A tiny dip of a TB-scale counter is not a reset: counting the
-// still-huge current value would inject a multi-terabyte spike.
+// TrafficCounterDelta is the conservative fallback for legacy records without
+// accepted deltas. A decreasing aggregate does not prove a zero-based reset.
 func TrafficCounterDelta(current, previous int64) int64 {
-	if current < 0 || previous < 0 {
+	if current < 0 || previous < 0 || current < previous {
 		return 0
 	}
-	if current >= previous {
-		return current - previous
-	}
-	if current > maxResetAwareDelta {
-		return 0
-	}
-	return current
+	return current - previous
 }
 
 func deleteReportTrafficState(entityID string) {

@@ -2,8 +2,10 @@ package clients
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/komari-monitor/komari/internal/metricstore"
+	"github.com/komari-monitor/komari/internal/trafficcounter"
 	v2 "github.com/komari-monitor/komari/protocol/v2"
 	"math"
 	"strings"
@@ -66,7 +68,7 @@ func effectiveCounter(raw, baseline, initial int64) int64 {
 	if raw >= baseline {
 		return saturatingAdd(initial, raw-baseline)
 	}
-	return saturatingAdd(initial, raw)
+	return initial
 }
 
 func clampNonNegative(value int64) int64 {
@@ -138,41 +140,68 @@ func LifetimeTraffic(client models.Client, rawUp, rawDown int64) (int64, int64) 
 	return client.TrafficLifetimeUp, client.TrafficLifetimeDown
 }
 
-func advanceLifetime(client *models.Client, report v2.Report) bool {
+// advanceClientTraffic makes one durable decision for lifetime, billing and metrics.
+func advanceClientTraffic(client *models.Client, report *v2.Report) (bool, error) {
 	if client.TrafficLifetimeAt != nil && !report.UpdatedAt.After(*client.TrafficLifetimeAt) {
-		return false
+		report.Traffic = &v2.TrafficObservation{Skip: true}
+		return false, nil
 	}
-	up, down := clampNonNegative(report.Network.TotalUp), clampNonNegative(report.Network.TotalDown)
-	if client.TrafficLifetimeAt == nil {
-		client.TrafficLifetimeUp, client.TrafficLifetimeDown = up, down
-	} else {
-		// Ignore a large counter dip as jitter and retain the high-water mark,
-		// so recovery to the previous value cannot be counted a second time.
-		add := func(total, previous *int64, current int64) {
-			delta := metricstore.TrafficCounterDelta(current, *previous)
-			if current < *previous && current > 0 && delta == 0 {
-				return
-			}
-			*total = saturatingAdd(*total, delta)
-			*previous = current
+	var state trafficcounter.State
+	if client.TrafficCounterState != "" {
+		if err := json.Unmarshal([]byte(client.TrafficCounterState), &state); err != nil {
+			return false, fmt.Errorf("decode traffic state: %w", err)
 		}
-		add(&client.TrafficLifetimeUp, &client.TrafficLifetimeRawUp, up)
-		add(&client.TrafficLifetimeDown, &client.TrafficLifetimeRawDown, down)
-		at := report.UpdatedAt.UTC()
-		client.TrafficLifetimeAt = &at
-		return true
+		if !state.Initialized {
+			return false, fmt.Errorf("uninitialized persisted traffic state")
+		}
+	} else if client.TrafficLifetimeAt != nil {
+		state = trafficcounter.State{Initialized: true, Up: trafficcounter.Direction{HighWater: client.TrafficLifetimeRawUp}, Down: trafficcounter.Direction{HighWater: client.TrafficLifetimeRawDown}}
+	} else if client.TrafficObservedAt != nil {
+		state = trafficcounter.State{Initialized: true, Up: trafficcounter.Direction{HighWater: client.TrafficResetUp}, Down: trafficcounter.Direction{HighWater: client.TrafficResetDown}}
 	}
-	client.TrafficLifetimeRawUp, client.TrafficLifetimeRawDown = up, down
+	next, delta, err := state.Advance(report.Network.TotalUp, report.Network.TotalDown, report.Network.CounterEpoch, report.Network.CounterBits)
+	if err != nil {
+		return false, err
+	}
 	at := report.UpdatedAt.UTC()
+	gap := client.TrafficLifetimeAt != nil && at.Sub(*client.TrafficLifetimeAt) > 15*time.Minute
+	report.Traffic = &v2.TrafficObservation{Up: delta.Up, Down: delta.Down, HighWaterUp: next.Up.HighWater, HighWaterDown: next.Down.HighWater, Uncertain: delta.Uncertain, Gap: gap}
+	if client.TrafficLifetimeAt == nil {
+		client.TrafficLifetimeUp, client.TrafficLifetimeDown = report.Network.TotalUp, report.Network.TotalDown
+	} else {
+		client.TrafficLifetimeUp = saturatingAdd(client.TrafficLifetimeUp, delta.Up)
+		client.TrafficLifetimeDown = saturatingAdd(client.TrafficLifetimeDown, delta.Down)
+	}
+	report.Traffic.HasLifetime = true
+	report.Traffic.LifetimeUp, report.Traffic.LifetimeDown = client.TrafficLifetimeUp, client.TrafficLifetimeDown
+	if client.TrafficLifetimeAt != nil {
+		report.Traffic.PreviousAt = *client.TrafficLifetimeAt
+	}
+	if client.TrafficResetAt != nil && (client.TrafficObservedAt == nil || at.After(*client.TrafficObservedAt)) {
+		if client.TrafficObservedAt == nil {
+			client.TrafficUsedUp, client.TrafficUsedDown = client.TrafficInitialUp, client.TrafficInitialDown
+		}
+		client.TrafficUsedUp = saturatingAdd(client.TrafficUsedUp, delta.Up)
+		client.TrafficUsedDown = saturatingAdd(client.TrafficUsedDown, delta.Down)
+		client.TrafficResetUp, client.TrafficResetDown = report.Network.TotalUp, report.Network.TotalDown
+		client.TrafficObservedAt = &at
+	}
+	encoded, err := json.Marshal(next)
+	if err != nil {
+		return false, err
+	}
+	client.TrafficCounterState = string(encoded)
+	client.TrafficIncomplete = client.TrafficIncomplete || delta.Uncertain || gap
+	client.TrafficLifetimeRawUp, client.TrafficLifetimeRawDown = report.Network.TotalUp, report.Network.TotalDown
 	client.TrafficLifetimeAt = &at
-	return true
+	return true, nil
 }
 
 func lifetimeUpdates(client models.Client) map[string]any {
 	return map[string]any{
 		"traffic_lifetime_up": client.TrafficLifetimeUp, "traffic_lifetime_down": client.TrafficLifetimeDown,
 		"traffic_lifetime_raw_up": client.TrafficLifetimeRawUp, "traffic_lifetime_raw_down": client.TrafficLifetimeRawDown,
-		"traffic_lifetime_at": client.TrafficLifetimeAt,
+		"traffic_lifetime_at": client.TrafficLifetimeAt, "traffic_counter_state": client.TrafficCounterState, "traffic_incomplete": client.TrafficIncomplete,
 	}
 }
 
@@ -210,7 +239,9 @@ func InitializeTrafficLifetime(ctx context.Context) error {
 		if !ok {
 			continue
 		}
-		advanceLifetime(&c, v2.Report{UpdatedAt: at, Network: v2.NetworkReport{TotalUp: record.NetTotalUp, TotalDown: record.NetTotalDown}})
+		if _, err := advanceClientTraffic(&c, &v2.Report{UpdatedAt: at, Network: v2.NetworkReport{TotalUp: record.NetTotalUp, TotalDown: record.NetTotalDown}}); err != nil {
+			return err
+		}
 		if err := db.Model(&models.Client{}).Where("uuid = ? AND traffic_lifetime_at IS NULL", c.UUID).Updates(lifetimeUpdates(c)).Error; err != nil {
 			return err
 		}
@@ -218,44 +249,34 @@ func InitializeTrafficLifetime(ctx context.Context) error {
 	return nil
 }
 
-// ObserveTraffic persists lifetime and optional billing counters atomically.
-// Caller holds TrafficMu. Presence changes never modify either counter set.
+// ObserveTraffic is retained for callers that do not write metric history.
+// Caller holds TrafficMu.
 func ObserveTraffic(report v2.Report) error {
+	_, err := ObserveTrafficReport(report)
+	return err
+}
+
+// ObserveTrafficReport persists state and account totals in one main-DB update,
+// and returns server-owned deltas for the asynchronous metric writer.
+func ObserveTrafficReport(report v2.Report) (v2.Report, error) {
 	db := dbcore.GetDBInstance()
 	var client models.Client
 	result := db.Where("uuid = ?", report.UUID).Limit(1).Find(&client)
-	if result.Error != nil || result.RowsAffected == 0 {
-		return result.Error
+	if result.Error != nil {
+		return report, result.Error
 	}
-	updates := map[string]any{}
-	if advanceLifetime(&client, report) {
-		updates = lifetimeUpdates(client)
+	if result.RowsAffected == 0 {
+		return report, fmt.Errorf("client not found")
 	}
-	if advanceTraffic(&client, report) {
+	changed, err := advanceClientTraffic(&client, &report)
+	if err != nil || !changed {
+		return report, err
+	}
+	updates := lifetimeUpdates(client)
+	if client.TrafficResetAt != nil {
 		updates["traffic_reset_up"], updates["traffic_reset_down"] = client.TrafficResetUp, client.TrafficResetDown
 		updates["traffic_used_up"], updates["traffic_used_down"] = client.TrafficUsedUp, client.TrafficUsedDown
 		updates["traffic_observed_at"] = client.TrafficObservedAt
 	}
-	if len(updates) == 0 {
-		return nil
-	}
-	return db.Model(&models.Client{}).Where("uuid = ?", report.UUID).Updates(updates).Error
-}
-
-func advanceTraffic(client *models.Client, report v2.Report) bool {
-	if client.TrafficResetAt == nil {
-		return false
-	}
-	if client.TrafficObservedAt != nil && !report.UpdatedAt.After(*client.TrafficObservedAt) {
-		return false
-	}
-	if client.TrafficObservedAt == nil {
-		client.TrafficUsedUp, client.TrafficUsedDown = client.TrafficInitialUp, client.TrafficInitialDown
-	}
-	client.TrafficUsedUp = saturatingAdd(client.TrafficUsedUp, metricstore.TrafficCounterDelta(report.Network.TotalUp, client.TrafficResetUp))
-	client.TrafficUsedDown = saturatingAdd(client.TrafficUsedDown, metricstore.TrafficCounterDelta(report.Network.TotalDown, client.TrafficResetDown))
-	client.TrafficResetUp, client.TrafficResetDown = report.Network.TotalUp, report.Network.TotalDown
-	at := report.UpdatedAt.UTC()
-	client.TrafficObservedAt = &at
-	return true
+	return report, db.Model(&models.Client{}).Where("uuid = ?", report.UUID).Updates(updates).Error
 }

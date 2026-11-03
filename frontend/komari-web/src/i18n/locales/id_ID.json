@@ -1,4 +1,8 @@
 {
+  "trafficCycle": {
+    "incomplete": "Statistik trafik tidak lengkap",
+    "incompleteHelp": "Beberapa interval tidak dapat diukur dengan andal. Penggunaan dapat ditampilkan lebih rendah."
+  },
   "about": {
     "ai": "Proses pengembangan proyek Komari didukung oleh alat kecerdasan buatan. Alat-alat ini digunakan untuk menjalankan tugas seperti pembuatan kode, refactoring, dan debugging, untuk meningkatkan efisiensi pengembangan dan kualitas kode. Semua kode dan saran yang dihasilkan oleh AI telah diperiksa dan divalidasi oleh pengembang manusia.",
     "open_source": "Komari bersifat open source berdasarkan lisensi MIT dan dibangun menggunakan perangkat lunak open source berikut:",

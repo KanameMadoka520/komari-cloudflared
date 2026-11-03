@@ -69,21 +69,33 @@ type IPAddress struct {
 	Ipv6 string `json:"ipv6"`
 }
 
+// TrafficObservation is server-owned; agent JSON cannot supply accepted deltas.
+type TrafficObservation struct {
+	Up, Down int64
+	// Durable accepted totals recover reports lost from the asynchronous queue.
+	HasLifetime                bool
+	LifetimeUp, LifetimeDown   int64
+	PreviousAt                 time.Time
+	HighWaterUp, HighWaterDown int64
+	Uncertain, Gap, Skip       bool
+}
+
 type Report struct {
-	UUID        string            `json:"uuid,omitempty"`
-	CPU         CPUReport         `json:"cpu"`
-	Ram         RamReport         `json:"ram"`
-	Swap        RamReport         `json:"swap"`
-	Load        LoadReport        `json:"load"`
-	Disk        DiskReport        `json:"disk"`
-	Network     NetworkReport     `json:"network"`
-	Connections ConnectionsReport `json:"connections"`
-	GPU         *GPUDetailReport  `json:"gpu,omitempty"`
-	Uptime      int64             `json:"uptime"`
-	Process     int               `json:"process"`
-	Message     string            `json:"message"`
-	Method      string            `json:"method,omitempty"`
-	UpdatedAt   time.Time         `json:"updated_at"`
+	Traffic     *TrafficObservation `json:"-"`
+	UUID        string              `json:"uuid,omitempty"`
+	CPU         CPUReport           `json:"cpu"`
+	Ram         RamReport           `json:"ram"`
+	Swap        RamReport           `json:"swap"`
+	Load        LoadReport          `json:"load"`
+	Disk        DiskReport          `json:"disk"`
+	Network     NetworkReport       `json:"network"`
+	Connections ConnectionsReport   `json:"connections"`
+	GPU         *GPUDetailReport    `json:"gpu,omitempty"`
+	Uptime      int64               `json:"uptime"`
+	Process     int                 `json:"process"`
+	Message     string              `json:"message"`
+	Method      string              `json:"method,omitempty"`
+	UpdatedAt   time.Time           `json:"updated_at"`
 }
 
 type CPUReport struct {
@@ -124,10 +136,14 @@ type DiskReport struct {
 }
 
 type NetworkReport struct {
-	Up        int64 `json:"up"`
-	Down      int64 `json:"down"`
-	TotalUp   int64 `json:"totalUp"`
-	TotalDown int64 `json:"totalDown"`
+	// CounterEpoch is an optional strictly increasing generation, persisted by
+	// the agent. It advances only when both counters start a zero-based period.
+	CounterEpoch uint64 `json:"counterEpoch,omitempty"`
+	CounterBits  uint8  `json:"counterBits,omitempty"`
+	Up           int64  `json:"up"`
+	Down         int64  `json:"down"`
+	TotalUp      int64  `json:"totalUp"`
+	TotalDown    int64  `json:"totalDown"`
 }
 
 type ConnectionsReport struct {

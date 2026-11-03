@@ -60,6 +60,8 @@ type Client struct {
 	TrafficLifetimeRawUp   int64      `json:"-" gorm:"type:bigint;default:0"`
 	TrafficLifetimeRawDown int64      `json:"-" gorm:"type:bigint;default:0"`
 	TrafficLifetimeAt      *time.Time `json:"-"`
+	TrafficCounterState    string     `json:"-" gorm:"type:text"`
+	TrafficIncomplete      bool       `json:"traffic_incomplete" gorm:"default:false"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -94,27 +96,30 @@ type Session struct {
 
 // Record logs client metrics over time
 type Record struct {
-	Client         string    `json:"client" gorm:"type:varchar(36);index"`
-	Time           time.Time `json:"time" gorm:"index"`
-	Cpu            float32   `json:"cpu" gorm:"type:decimal(5,2)"` // e.g., 75.50%
-	Gpu            float32   `json:"gpu" gorm:"type:decimal(5,2)"`
-	Ram            int64     `json:"ram" gorm:"type:bigint"`
-	RamTotal       int64     `json:"ram_total" gorm:"type:bigint"`
-	Swap           int64     `json:"swap" gorm:"type:bigint"`
-	SwapTotal      int64     `json:"swap_total" gorm:"type:bigint"`
-	Load           float32   `json:"load" gorm:"type:decimal(5,2)"`
-	Temp           float32   `json:"temp" gorm:"type:decimal(5,2)"`
-	Disk           int64     `json:"disk" gorm:"type:bigint"`
-	DiskTotal      int64     `json:"disk_total" gorm:"type:bigint"`
-	NetIn          int64     `json:"net_in" gorm:"type:bigint"`
-	NetOut         int64     `json:"net_out" gorm:"type:bigint"`
-	NetTotalUp     int64     `json:"net_total_up" gorm:"type:bigint"`
-	NetTotalDown   int64     `json:"net_total_down" gorm:"type:bigint"`
-	TrafficUp      int64     `json:"traffic_up" gorm:"type:bigint"`
-	TrafficDown    int64     `json:"traffic_down" gorm:"type:bigint"`
-	Process        int       `json:"process"`
-	Connections    int       `json:"connections"`
-	ConnectionsUdp int       `json:"connections_udp"`
+	Client             string    `json:"client" gorm:"type:varchar(36);index"`
+	Time               time.Time `json:"time" gorm:"index"`
+	Cpu                float32   `json:"cpu" gorm:"type:decimal(5,2)"` // e.g., 75.50%
+	Gpu                float32   `json:"gpu" gorm:"type:decimal(5,2)"`
+	Ram                int64     `json:"ram" gorm:"type:bigint"`
+	RamTotal           int64     `json:"ram_total" gorm:"type:bigint"`
+	Swap               int64     `json:"swap" gorm:"type:bigint"`
+	SwapTotal          int64     `json:"swap_total" gorm:"type:bigint"`
+	Load               float32   `json:"load" gorm:"type:decimal(5,2)"`
+	Temp               float32   `json:"temp" gorm:"type:decimal(5,2)"`
+	Disk               int64     `json:"disk" gorm:"type:bigint"`
+	DiskTotal          int64     `json:"disk_total" gorm:"type:bigint"`
+	NetIn              int64     `json:"net_in" gorm:"type:bigint"`
+	NetOut             int64     `json:"net_out" gorm:"type:bigint"`
+	NetTotalUp         int64     `json:"net_total_up" gorm:"type:bigint"`
+	NetTotalDown       int64     `json:"net_total_down" gorm:"type:bigint"`
+	TrafficUp          int64     `json:"traffic_up" gorm:"type:bigint"`
+	TrafficDown        int64     `json:"traffic_down" gorm:"type:bigint"`
+	TrafficUpPresent   bool      `json:"-" gorm:"-"`
+	TrafficDownPresent bool      `json:"-" gorm:"-"`
+	TrafficUncertain   int64     `json:"traffic_uncertain" gorm:"-"`
+	Process            int       `json:"process"`
+	Connections        int       `json:"connections"`
+	ConnectionsUdp     int       `json:"connections_udp"`
 	//Uptime         int64     `json:"uptime" gorm:"type:bigint"`
 }
 

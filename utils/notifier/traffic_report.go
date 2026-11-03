@@ -119,9 +119,17 @@ func sendTrafficReport(daily, weekly, monthly bool) {
 			continue
 		}
 
+		records, qualityErr := metricstore.GetRecordsByClientAndTime(context.Background(), n.Client, start, end, metricstore.RecordQueryOptions{MetricNames: []string{metricstore.MetricTrafficUncertain}})
+		incomplete := qualityErr != nil
+		for _, record := range records {
+			incomplete = incomplete || record.TrafficUncertain > 0
+		}
 		name := strings.TrimSpace(c.Name)
 		if name == "" {
 			name = c.UUID
+		}
+		if incomplete {
+			name += "（统计不完整）"
 		}
 		reportLines = append(reportLines, trafficReportLine{Name: name, Used: used})
 		eventClients = append(eventClients, c)
@@ -179,7 +187,7 @@ func formatTrafficReport(period string, start, end time.Time, lines []trafficRep
 	nodes := make([]map[string]string, 0, len(sorted))
 	var total int64
 	for _, line := range sorted {
-		total += line.Used
+		total = saturatingTrafficSum(total, line.Used)
 		nodes = append(nodes, map[string]string{"name": line.Name, "used": humanBytes(line.Used)})
 	}
 	title, body, err := notifytmpl.Render(id, map[string]string{
@@ -234,11 +242,12 @@ func getClientTrafficInRange(clientUUID string, trafficType string, start, end t
 	records := make([]trafficDeltaRecord, 0, len(recs))
 	for _, r := range recs {
 		records = append(records, trafficDeltaRecord{
-			Time:         r.Time,
-			NetTotalUp:   r.NetTotalUp,
-			NetTotalDown: r.NetTotalDown,
-			TrafficUp:    r.TrafficUp,
-			TrafficDown:  r.TrafficDown,
+			Time:             r.Time,
+			NetTotalUp:       r.NetTotalUp,
+			NetTotalDown:     r.NetTotalDown,
+			TrafficUp:        r.TrafficUp,
+			TrafficDown:      r.TrafficDown,
+			TrafficUpPresent: r.TrafficUpPresent, TrafficDownPresent: r.TrafficDownPresent,
 		})
 	}
 	sort.Slice(records, func(i, j int) bool {
@@ -264,28 +273,40 @@ func getClientTrafficInRange(clientUUID string, trafficType string, start, end t
 }
 
 type trafficDeltaRecord struct {
-	Time         time.Time
-	NetTotalUp   int64
-	NetTotalDown int64
-	TrafficUp    int64
-	TrafficDown  int64
+	Time                                 time.Time
+	NetTotalUp                           int64
+	NetTotalDown                         int64
+	TrafficUp                            int64
+	TrafficDown                          int64
+	TrafficUpPresent, TrafficDownPresent bool
 }
 
 func sumTrafficDeltas(records []trafficDeltaRecord, previous *trafficDeltaRecord) (int64, int64) {
 	var totalUp int64
 	var totalDown int64
+	var highUp, highDown int64
+	hasBaseline := previous != nil
+	if previous != nil {
+		highUp, highDown = previous.NetTotalUp, previous.NetTotalDown
+	}
 
 	for i := range records {
 		up := records[i].TrafficUp
 		down := records[i].TrafficDown
 
-		if previous != nil {
-			up = trafficDeltaOrFallback(up, records[i].NetTotalUp, previous.NetTotalUp)
-			down = trafficDeltaOrFallback(down, records[i].NetTotalDown, previous.NetTotalDown)
+		if hasBaseline {
+			if !records[i].TrafficUpPresent {
+				up = trafficDeltaOrFallback(up, records[i].NetTotalUp, highUp)
+			}
+			if !records[i].TrafficDownPresent {
+				down = trafficDeltaOrFallback(down, records[i].NetTotalDown, highDown)
+			}
 		}
-		totalUp += up
-		totalDown += down
-		previous = &records[i]
+		totalUp = saturatingTrafficSum(totalUp, up)
+		totalDown = saturatingTrafficSum(totalDown, down)
+		highUp = max(highUp, records[i].NetTotalUp)
+		highDown = max(highDown, records[i].NetTotalDown)
+		hasBaseline = true
 	}
 
 	return totalUp, totalDown
@@ -296,4 +317,15 @@ func trafficDeltaOrFallback(storedDelta, currentTotal, previousTotal int64) int6
 		return storedDelta
 	}
 	return metricstore.TrafficCounterDelta(currentTotal, previousTotal)
+}
+
+func saturatingTrafficSum(total, increment int64) int64 {
+	if increment < 0 {
+		return total
+	}
+	const maxInt64 = int64(1<<63 - 1)
+	if total > maxInt64-increment {
+		return maxInt64
+	}
+	return total + increment
 }

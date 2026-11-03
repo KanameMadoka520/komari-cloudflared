@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/komari-monitor/komari/internal/trafficcounter"
 	"sync"
 	"time"
 
@@ -21,14 +22,17 @@ type reportTrafficState struct {
 }
 
 type reportTrafficValues struct {
-	initialized bool
-	timestamp   time.Time
-	hasUp       bool
-	totalUp     int64
-	totalUpAt   time.Time
-	hasDown     bool
-	totalDown   int64
-	totalDownAt time.Time
+	hasLifetime              bool
+	lifetimeUp, lifetimeDown int64
+	counter                  trafficcounter.State
+	initialized              bool
+	timestamp                time.Time
+	hasUp                    bool
+	totalUp                  int64
+	totalUpAt                time.Time
+	hasDown                  bool
+	totalDown                int64
+	totalDownAt              time.Time
 }
 
 var (
@@ -357,6 +361,31 @@ func writeReportBatch(ctx context.Context, reports []v2.Report) ([]v2.Report, er
 				values.totalDownAt = totalDown.Timestamp
 				values.hasDown = hasDown
 			}
+			highUp, hasHighUp, highErr := latestReportCounter(ctx, s, MetricTrafficHighUp, report.UUID, report.UpdatedAt)
+			if highErr != nil {
+				return nil, highErr
+			}
+			highDown, hasHighDown, highErr := latestReportCounter(ctx, s, MetricTrafficHighDown, report.UUID, report.UpdatedAt)
+			if highErr != nil {
+				return nil, highErr
+			}
+			if !hasHighUp {
+				highUp = values.totalUp
+			}
+			if !hasHighDown {
+				highDown = values.totalDown
+			}
+			values.counter = trafficcounter.State{Initialized: values.hasUp || values.hasDown, Up: trafficcounter.Direction{HighWater: highUp}, Down: trafficcounter.Direction{HighWater: highDown}, Epoch: report.Network.CounterEpoch, Bits: report.Network.CounterBits}
+			acceptedUp, hasAcceptedUp, err := latestReportCounter(ctx, s, MetricTrafficAcceptedUp, report.UUID, report.UpdatedAt)
+			if err != nil {
+				return nil, err
+			}
+			acceptedDown, hasAcceptedDown, err := latestReportCounter(ctx, s, MetricTrafficAcceptedDown, report.UUID, report.UpdatedAt)
+			if err != nil {
+				return nil, err
+			}
+			values.hasLifetime = hasAcceptedUp && hasAcceptedDown
+			values.lifetimeUp, values.lifetimeDown = acceptedUp, acceptedDown
 			values.initialized = true
 			// Keep only the restored baseline on failure. WriteBatch may have
 			// accepted raw samples before a rollup flush fails, so restoring
@@ -369,13 +398,54 @@ func writeReportBatch(ctx context.Context, reports []v2.Report) ([]v2.Report, er
 		if !values.timestamp.IsZero() && !report.UpdatedAt.After(values.timestamp) {
 			report.UpdatedAt = values.timestamp.Add(time.Millisecond)
 		}
-		trafficUp := int64(0)
-		if values.hasUp && !values.totalUpAt.IsZero() && report.UpdatedAt.Sub(values.totalUpAt) <= maxTrafficReportGap {
-			trafficUp = TrafficCounterDelta(report.Network.TotalUp, values.totalUp)
-		}
-		trafficDown := int64(0)
-		if values.hasDown && !values.totalDownAt.IsZero() && report.UpdatedAt.Sub(values.totalDownAt) <= maxTrafficReportGap {
-			trafficDown = TrafficCounterDelta(report.Network.TotalDown, values.totalDown)
+		trafficUp, trafficDown := int64(0), int64(0)
+		if report.Traffic != nil {
+			if report.Traffic.Skip {
+				continue
+			}
+			trafficUp, trafficDown = report.Traffic.Up, report.Traffic.Down
+			// A main-DB observation can survive a crash before its metric queue is
+			// flushed. Bridge it from durable accepted totals, never raw counters.
+			if report.Traffic.HasLifetime {
+				observation := *report.Traffic
+				report.Traffic = &observation
+				if values.hasLifetime {
+					if observation.LifetimeUp < values.lifetimeUp || observation.LifetimeDown < values.lifetimeDown {
+						return nil, fmt.Errorf("accepted traffic total moved backwards for %s", report.UUID)
+					}
+					trafficUp = observation.LifetimeUp - values.lifetimeUp
+					trafficDown = observation.LifetimeDown - values.lifetimeDown
+				}
+				if !observation.PreviousAt.IsZero() && (observation.PreviousAt.After(values.totalUpAt) || observation.PreviousAt.After(values.totalDownAt)) {
+					report.Traffic.Uncertain = true
+				}
+				if (!values.totalUpAt.IsZero() && report.UpdatedAt.Sub(values.totalUpAt) > maxTrafficReportGap) || (!values.totalDownAt.IsZero() && report.UpdatedAt.Sub(values.totalDownAt) > maxTrafficReportGap) {
+					report.Traffic.Gap = true
+				}
+				values.hasLifetime = true
+				values.lifetimeUp, values.lifetimeDown = observation.LifetimeUp, observation.LifetimeDown
+			}
+
+			if report.Traffic.Gap {
+				trafficUp, trafficDown = 0, 0
+			}
+			values.counter.Up.HighWater, values.counter.Down.HighWater = report.Traffic.HighWaterUp, report.Traffic.HighWaterDown
+			values.counter.Initialized = true
+		} else {
+			next, delta, err := values.counter.Advance(report.Network.TotalUp, report.Network.TotalDown, report.Network.CounterEpoch, report.Network.CounterBits)
+			if err != nil {
+				return nil, err
+			}
+			values.counter = next
+			trafficUp, trafficDown = delta.Up, delta.Down
+			gap := (!values.totalUpAt.IsZero() && report.UpdatedAt.Sub(values.totalUpAt) > maxTrafficReportGap) || (!values.totalDownAt.IsZero() && report.UpdatedAt.Sub(values.totalDownAt) > maxTrafficReportGap)
+			if !values.hasUp || gap {
+				trafficUp = 0
+			}
+			if !values.hasDown || gap {
+				trafficDown = 0
+			}
+			report.Traffic = &v2.TrafficObservation{Up: trafficUp, Down: trafficDown, HighWaterUp: next.Up.HighWater, HighWaterDown: next.Down.HighWater, Uncertain: delta.Uncertain, Gap: gap}
 		}
 		points = append(points, reportMetricPoints(report, trafficUp, trafficDown)...)
 		values.timestamp = report.UpdatedAt

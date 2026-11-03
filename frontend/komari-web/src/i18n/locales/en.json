@@ -1662,6 +1662,8 @@
   "warn_https": "The current connection is not HTTPS! Your sensitive data is at serious risk. Take immediate action to secure the connection! Copy may not available!",
   "warn_websocket": "RPC2 request failed, please check the network connection or server status!",
   "trafficCycle": {
+    "incomplete": "Incomplete traffic statistics",
+    "incompleteHelp": "Some intervals could not be measured reliably. Usage may be understated.",
     "title": "Traffic cycle",
     "description": "Reset this traffic cycle or align current usage with your provider. Future usage accumulates from the entered amount.",
     "current": "Current billed usage",

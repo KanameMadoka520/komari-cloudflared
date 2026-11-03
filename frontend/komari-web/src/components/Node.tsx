@@ -226,6 +226,11 @@ const Node = React.memo(
               </Text>
             </Flex>
 
+          {liveData.network.incomplete && (
+            <Text size="1" color="amber" title={t("trafficCycle.incompleteHelp")}>
+              {t("trafficCycle.incomplete")}
+            </Text>
+          )}
           <Flex justify="between" hidden={isMobile}>
             <Text size="2" color="gray" className="flex items-center">
               {t("nodeCard.networkSpeed")}

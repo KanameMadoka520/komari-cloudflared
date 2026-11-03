@@ -105,6 +105,9 @@ func CheckTraffic() {
 				"limit":   humanBytes(c.TrafficLimit),
 				"billing": trafficTypeLabel(c.TrafficLimitType),
 			}
+			if c.TrafficIncomplete {
+				trafficData["used"] += "（统计不完整，可能偏低）"
+			}
 			_ = messageSender.SendNotification(models.EventMessage{
 				Event:   messageevent.Traffic,
 				Clients: []models.Client{c},

@@ -21,7 +21,10 @@ func TestTrafficCalibrationPersistsAndKeepsRawCounters(t *testing.T) {
 	}
 	defer db.Delete(&models.Client{}, "uuid = ?", id)
 	defer agent.DeleteLatestReport(id)
-	report := v2.Report{UUID: id, UpdatedAt: time.Now().UTC(), Network: v2.NetworkReport{TotalUp: 1000, TotalDown: 2000}}
+	report := v2.Report{UUID: id, UpdatedAt: time.Now().UTC(), Network: v2.NetworkReport{TotalUp: 1000, TotalDown: 2000, CounterEpoch: 1}}
+	if err := clients.ObserveTraffic(report); err != nil {
+		t.Fatal(err)
+	}
 	agent.RecordReport(report)
 	req := &rpc.JsonRpcRequest{Params: map[string]any{"uuid": id, "upload": 100, "download": 200}}
 	if _, e := adminSetClientTrafficUsage(context.Background(), req); e != nil {
@@ -59,6 +62,7 @@ func TestTrafficCalibrationPersistsAndKeepsRawCounters(t *testing.T) {
 	report.UpdatedAt = report.UpdatedAt.Add(time.Second)
 	report.Network.TotalUp = 5
 	report.Network.TotalDown = 7
+	report.Network.CounterEpoch = 2
 	if err := clients.ObserveTraffic(report); err != nil {
 		t.Fatal(err)
 	}

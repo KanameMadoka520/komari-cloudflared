@@ -2,6 +2,7 @@ package clients
 
 import (
 	"fmt"
+	"github.com/komari-monitor/komari/internal/trafficcounter"
 	"math"
 
 	"github.com/komari-monitor/komari/database/dbcore"
@@ -19,6 +20,9 @@ func GetClientUUIDByToken(token string) (string, error) {
 
 // ReportVerify 检查上报数据，防止异常数据导致数据库损坏
 func ReportVerify(report v2.Report) error {
+	if err := trafficcounter.Validate(report.Network.TotalUp, report.Network.TotalDown, report.Network.CounterEpoch, report.Network.CounterBits); err != nil {
+		return err
+	}
 	if report.CPU.Usage < 0 || report.CPU.Usage > 100 {
 		return fmt.Errorf("CPU.Usage must be between 0 and 100")
 	}

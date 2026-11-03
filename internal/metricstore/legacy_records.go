@@ -177,7 +177,7 @@ func getRecordMetricMaxByClientAndTimeFromSeries(ctx context.Context, s *metric.
 
 func recordMetricAggregation(metricName string) metric.Aggregation {
 	switch metricName {
-	case MetricTrafficUp, MetricTrafficDown:
+	case MetricTrafficUp, MetricTrafficDown, MetricTrafficUncertain:
 		return metric.AggSum
 	case MetricNetTotalUp, MetricNetTotalDown:
 		return metric.AggLast
@@ -210,8 +210,12 @@ func applyRecordMetricValue(rec *models.Record, metricName string, value float64
 		rec.NetTotalDown = int64(value)
 	case MetricTrafficUp:
 		rec.TrafficUp = int64(value)
+		rec.TrafficUpPresent = true
 	case MetricTrafficDown:
 		rec.TrafficDown = int64(value)
+		rec.TrafficDownPresent = true
+	case MetricTrafficUncertain:
+		rec.TrafficUncertain = int64(value)
 	case MetricProcess:
 		rec.Process = int(value)
 	case MetricConnections:

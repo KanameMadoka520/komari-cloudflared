@@ -456,6 +456,7 @@ const NodeTable: React.FC<NodeTableProps> = ({ nodes, liveData, onlineSet }) => 
                   </TableCell>
                   <TableCell className="text-center min-w-[100px]">
                     {formatBytes(nodeData.network.cycleTotal ?? (nodeData.network.totalUp + nodeData.network.totalDown))}
+                    {nodeData.network.incomplete && <div className="text-xs text-amber-600" title={t("trafficCycle.incompleteHelp")}>{t("trafficCycle.incomplete")}</div>}
                   </TableCell>
                   <TableCell className="text-center min-w-[80px]">
                     <label>↑{formatBytes(nodeData.network.totalUp)}</label>

@@ -229,6 +229,7 @@ func trafficUsage(client models.Client, rawUp, rawDown int64) map[string]any {
 		"total":        clients.EffectiveTrafficTotal(client, rawUp, rawDown),
 		"total_mode":   client.TrafficInitialTotal != nil,
 		"billing_type": client.TrafficLimitType,
+		"incomplete":   client.TrafficIncomplete,
 		"raw_upload":   rawUp, "raw_download": rawDown,
 		"reset_at":       client.TrafficResetAt,
 		"initial_upload": client.TrafficInitialUp, "initial_download": client.TrafficInitialDown,
