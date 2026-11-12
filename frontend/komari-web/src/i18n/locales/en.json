@@ -932,7 +932,8 @@
       "integration": "Data and integrations",
       "utility": "System and utilities",
       "uncategorized": "Uncategorized"
-    }
+    },
+    "config_select_plugin": "Select a plugin on the left to configure"
   },
   "pprof": {
     "capture_duration": "CPU and trace capture duration",
@@ -1637,7 +1638,8 @@
     "upload_success": "Theme uploaded successfully",
     "uploading": "Uploading theme...",
     "version": "Version",
-    "zip_files_only": "Only .zip files are supported"
+    "zip_files_only": "Only .zip files are supported",
+    "delete_active_warning": "\"{{themeName}}\" is currently in use. Continuing will switch to the default theme and delete this theme. This action cannot be undone."
   },
   "time": {
     "ago": "Ago",
@@ -1662,8 +1664,8 @@
   "warn_https": "The current connection is not HTTPS! Your sensitive data is at serious risk. Take immediate action to secure the connection! Copy may not available!",
   "warn_websocket": "RPC2 request failed, please check the network connection or server status!",
   "trafficCycle": {
-    "incomplete": "Incomplete traffic statistics",
-    "incompleteHelp": "Some intervals could not be measured reliably. Usage may be understated.",
+    "incomplete": "History contains gaps",
+    "incompleteHelp": "Some historical intervals could not be measured exactly. New traffic continues to accumulate when counters are healthy. Old gaps cannot be reconstructed automatically; provider usage can calibrate billing.",
     "title": "Traffic cycle",
     "description": "Reset this traffic cycle or align current usage with your provider. Future usage accumulates from the entered amount.",
     "current": "Current billed usage",
@@ -1694,7 +1696,12 @@
       "max": "Larger direction",
       "min": "Smaller direction"
     },
-    "cycleUsage": "Billing cycle usage"
+    "cycleUsage": "Billing cycle usage",
+    "counterPending": "Counter decreased; some traffic is awaiting recovery",
+    "counterPendingHelp": "The agent counter is below an earlier value. That direction is held to prevent counting old bytes again. After confirming a reboot or interface change, use Recover traffic collection in the node’s traffic settings.",
+    "recover": "Recover traffic collection",
+    "recoverConfirm": "Confirm that the counter changed permanently after a reboot or interface change. Collection will resume from the latest report without changing retained lifetime totals, billing usage or history. Unmeasured past bytes will not be added. A temporary dip that later recovers can still lead to duplicate counts if you confirm incorrectly.",
+    "recovered": "Traffic collection recovered; retained totals preserved"
   },
   "notificationUpgrade": {
     "title": "Notification Channels Have Changed",

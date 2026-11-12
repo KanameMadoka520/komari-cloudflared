@@ -416,7 +416,10 @@ func writeReportBatch(ctx context.Context, reports []v2.Report) ([]v2.Report, er
 					trafficUp = observation.LifetimeUp - values.lifetimeUp
 					trafficDown = observation.LifetimeDown - values.lifetimeDown
 				}
-				if !observation.PreviousAt.IsZero() && (observation.PreviousAt.After(values.totalUpAt) || observation.PreviousAt.After(values.totalDownAt)) {
+				// Metrics persist millisecond timestamps while main-DB observations
+				// retain nanoseconds. Compare at storage precision so a clean restart
+				// does not turn the same flushed sample into an apparent lost report.
+				if !observation.PreviousAt.IsZero() && (observation.PreviousAt.UnixMilli() > values.totalUpAt.UnixMilli() || observation.PreviousAt.UnixMilli() > values.totalDownAt.UnixMilli()) {
 					report.Traffic.Uncertain = true
 				}
 				if (!values.totalUpAt.IsZero() && report.UpdatedAt.Sub(values.totalUpAt) > maxTrafficReportGap) || (!values.totalDownAt.IsZero() && report.UpdatedAt.Sub(values.totalDownAt) > maxTrafficReportGap) {
@@ -432,7 +435,7 @@ func writeReportBatch(ctx context.Context, reports []v2.Report) ([]v2.Report, er
 			values.counter.Up.HighWater, values.counter.Down.HighWater = report.Traffic.HighWaterUp, report.Traffic.HighWaterDown
 			values.counter.Initialized = true
 		} else {
-			next, delta, err := values.counter.Advance(report.Network.TotalUp, report.Network.TotalDown, report.Network.CounterEpoch, report.Network.CounterBits)
+			next, delta, err := values.counter.AdvanceObserved(report.Network.TotalUp, report.Network.TotalDown, report.Network.CounterEpoch, report.Network.CounterBits, report.Uptime, report.UpdatedAt)
 			if err != nil {
 				return nil, err
 			}

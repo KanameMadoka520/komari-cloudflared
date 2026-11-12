@@ -166,3 +166,65 @@ func TestProviderTotalCalibrationAPI(t *testing.T) {
 		t.Fatal("reset retained total baseline")
 	}
 }
+
+func TestTrafficRecoveryKeepsTotalsAndRejectsStaleSnapshots(t *testing.T) {
+	db := dbcore.GetDBInstance()
+	id := "traffic-recovery-test"
+	if err := db.Create(&models.Client{UUID: id, Token: id, Name: id, TrafficLimitType: "sum"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	defer db.Delete(&models.Client{}, "uuid = ?", id)
+	at := time.Now().UTC().Add(-time.Second)
+	report := v2.Report{UUID: id, UpdatedAt: at, Uptime: 10000, Network: v2.NetworkReport{TotalUp: 1000, TotalDown: 2000}}
+	if err := clients.ObserveTraffic(report); err != nil {
+		t.Fatal(err)
+	}
+	if err := clients.SetTrafficBaseline(id, 1000, 2000, 123, 456, at); err != nil {
+		t.Fatal(err)
+	}
+	report.UpdatedAt, report.Uptime = time.Now().UTC(), 10001
+	report.Network.TotalUp, report.Network.TotalDown = 10, 2020
+	if err := clients.ObserveTraffic(report); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := clients.GetClientByUUID(id)
+	req := &rpc.JsonRpcRequest{Params: map[string]any{"uuid": id}}
+	result, rpcErr := adminRebaseClientTrafficCounters(context.Background(), req)
+	if rpcErr != nil {
+		t.Fatal(rpcErr)
+	}
+	if result.(map[string]any)["counter_pending"] != false || result.(map[string]any)["incomplete"] != true {
+		t.Fatal(result)
+	}
+	after, _ := clients.GetClientByUUID(id)
+	if before.TrafficLifetimeUp != after.TrafficLifetimeUp || before.TrafficLifetimeDown != after.TrafficLifetimeDown || before.TrafficUsedUp != after.TrafficUsedUp || before.TrafficUsedDown != after.TrafficUsedDown || !before.TrafficResetAt.Equal(*after.TrafficResetAt) {
+		t.Fatal("recovery changed billing/lifetime totals or calibration date")
+	}
+	report.UpdatedAt, report.Uptime = time.Now().UTC().Add(time.Second), 10002
+	report.Network.TotalUp, report.Network.TotalDown = 15, 2027
+	if err := clients.ObserveTraffic(report); err != nil {
+		t.Fatal(err)
+	}
+	after, _ = clients.GetClientByUUID(id)
+	if after.TrafficLifetimeUp != before.TrafficLifetimeUp+5 || after.TrafficUsedUp != before.TrafficUsedUp+5 || after.TrafficUsedDown != before.TrafficUsedDown+7 {
+		t.Fatal("post-recovery accounting diverged")
+	}
+	if _, e := adminRebaseClientTrafficCounters(context.Background(), req); e == nil {
+		t.Fatal("healthy counter accepted recovery")
+	}
+	report.UpdatedAt = report.UpdatedAt.Add(time.Second)
+	report.Network.TotalUp = 1
+	if err := clients.ObserveTraffic(report); err != nil {
+		t.Fatal(err)
+	}
+	stale := time.Now().UTC().Add(-3 * time.Minute)
+	if err := db.Model(&models.Client{}).Where("uuid = ?", id).Update("traffic_lifetime_at", stale).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, e := adminRebaseClientTrafficCounters(context.Background(), req); e == nil {
+		t.Fatal("stale snapshot accepted recovery")
+	}
+	if _, e := adminRebaseClientTrafficCounters(context.Background(), &rpc.JsonRpcRequest{Params: map[string]any{}}); e == nil {
+		t.Fatal("missing node accepted")
+	}
+}

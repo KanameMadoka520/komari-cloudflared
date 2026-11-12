@@ -159,7 +159,7 @@ func advanceClientTraffic(client *models.Client, report *v2.Report) (bool, error
 	} else if client.TrafficObservedAt != nil {
 		state = trafficcounter.State{Initialized: true, Up: trafficcounter.Direction{HighWater: client.TrafficResetUp}, Down: trafficcounter.Direction{HighWater: client.TrafficResetDown}}
 	}
-	next, delta, err := state.Advance(report.Network.TotalUp, report.Network.TotalDown, report.Network.CounterEpoch, report.Network.CounterBits)
+	next, delta, err := state.AdvanceObserved(report.Network.TotalUp, report.Network.TotalDown, report.Network.CounterEpoch, report.Network.CounterBits, report.Uptime, report.UpdatedAt)
 	if err != nil {
 		return false, err
 	}
@@ -195,6 +195,46 @@ func advanceClientTraffic(client *models.Client, report *v2.Report) (bool, error
 	client.TrafficLifetimeRawUp, client.TrafficLifetimeRawDown = report.Network.TotalUp, report.Network.TotalDown
 	client.TrafficLifetimeAt = &at
 	return true, nil
+}
+
+// TrafficCounterHealth distinguishes an unresolved counter regression from a
+// historical incomplete interval. Callers must not clear lifetime uncertainty
+// merely because new reports are healthy.
+func TrafficCounterHealth(client models.Client) (pending, canRebase bool) {
+	var state trafficcounter.State
+	if json.Unmarshal([]byte(client.TrafficCounterState), &state) != nil {
+		return false, false
+	}
+	pending = state.Up.Pending || state.Down.Pending
+	return pending, pending && state.Epoch == 0
+}
+
+// RebaseTrafficCounters resumes future measurement from the latest durable raw
+// observation. Caller holds TrafficMu. It changes neither lifetime totals nor
+// billing calibration/usage, and refuses stale/offline snapshots.
+func RebaseTrafficCounters(uuid string, now time.Time) error {
+	client, err := GetClientByUUID(uuid)
+	if err != nil {
+		return err
+	}
+	if client.TrafficLifetimeAt == nil || now.Sub(*client.TrafficLifetimeAt) > 2*time.Minute || client.TrafficLifetimeAt.After(now) {
+		return fmt.Errorf("wait for a fresh agent report before recovering counters")
+	}
+	var state trafficcounter.State
+	if err := json.Unmarshal([]byte(client.TrafficCounterState), &state); err != nil {
+		return fmt.Errorf("decode traffic state: %w", err)
+	}
+	state, err = state.RebasePending(client.TrafficLifetimeRawUp, client.TrafficLifetimeRawDown)
+	if err != nil {
+		return err
+	}
+	encoded, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	return dbcore.GetDBInstance().Model(&models.Client{}).Where("uuid = ?", uuid).Updates(map[string]any{
+		"traffic_counter_state": string(encoded), "traffic_incomplete": true,
+	}).Error
 }
 
 func lifetimeUpdates(client models.Client) map[string]any {

@@ -81,6 +81,12 @@ func init() {
 		Params:  []rpc.ParamMeta{{Name: "uuid", Type: "string", Required: true, Description: "Client UUID"}},
 		Returns: "null",
 	})
+	RegisterWithGroupAndMeta("rebaseClientTrafficCounters", rpc.RoleAdmin, adminRebaseClientTrafficCounters, &rpc.MethodMeta{
+		Name:    "admin:rebaseClientTrafficCounters",
+		Summary: "Resume decreased legacy counters without changing retained usage",
+		Params:  []rpc.ParamMeta{{Name: "uuid", Type: "string", Required: true, Description: "Client UUID"}},
+		Returns: "Traffic usage and counter health",
+	})
 	RegisterWithGroupAndMeta("setClientTrafficUsage", rpc.RoleAdmin, adminSetClientTrafficUsage, &rpc.MethodMeta{
 		Name:    "admin:setClientTrafficUsage",
 		Summary: "Start a traffic cycle with manually entered usage",
@@ -224,17 +230,41 @@ func adminGetClientTraffic(ctx context.Context, req *rpc.JsonRpcRequest) (any, *
 
 func trafficUsage(client models.Client, rawUp, rawDown int64) map[string]any {
 	usedUp, usedDown := clients.EffectiveTraffic(client, rawUp, rawDown)
+	pending, canRebase := clients.TrafficCounterHealth(client)
 	return map[string]any{
 		"upload": usedUp, "download": usedDown,
-		"total":        clients.EffectiveTrafficTotal(client, rawUp, rawDown),
-		"total_mode":   client.TrafficInitialTotal != nil,
-		"billing_type": client.TrafficLimitType,
-		"incomplete":   client.TrafficIncomplete,
-		"raw_upload":   rawUp, "raw_download": rawDown,
+		"total":           clients.EffectiveTrafficTotal(client, rawUp, rawDown),
+		"total_mode":      client.TrafficInitialTotal != nil,
+		"billing_type":    client.TrafficLimitType,
+		"incomplete":      client.TrafficIncomplete,
+		"counter_pending": pending, "can_rebase": canRebase,
+		"observed_at": client.TrafficLifetimeAt,
+		"raw_upload":  rawUp, "raw_download": rawDown,
 		"reset_at":       client.TrafficResetAt,
 		"initial_upload": client.TrafficInitialUp, "initial_download": client.TrafficInitialDown,
 		"initial_total": client.TrafficInitialTotal,
 	}
+}
+
+func adminRebaseClientTrafficCounters(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+	var params struct {
+		UUID string `json:"uuid"`
+	}
+	if err := req.BindParams(&params); err != nil || params.UUID == "" {
+		return nil, rpc.MakeError(rpc.InvalidParams, "Invalid or missing UUID", nil)
+	}
+	clients.TrafficMu.Lock()
+	defer clients.TrafficMu.Unlock()
+	if err := clients.RebaseTrafficCounters(params.UUID, time.Now().UTC()); err != nil {
+		return nil, rpc.MakeError(rpc.InvalidParams, "Cannot recover traffic counters", err.Error())
+	}
+	client, err := clients.GetClientByUUID(params.UUID)
+	if err != nil {
+		return nil, rpc.MakeError(rpc.InternalError, "Failed to read recovered counters", nil)
+	}
+	actor, ip := auditActor(ctx)
+	auditlog.Log(ip, actor, "rebase traffic counters; retained totals unchanged:"+params.UUID, "warn")
+	return trafficUsage(client, client.TrafficLifetimeRawUp, client.TrafficLifetimeRawDown), nil
 }
 
 func setClientTrafficCycle(ctx context.Context, uuid string, initialUp, initialDown int64, total *int64) (any, *rpc.JsonRpcError) {

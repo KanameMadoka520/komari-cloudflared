@@ -33,5 +33,24 @@
     "Merge theme, dashboard and guide settings on save; protect notification configuration against stale requests.",
     "1.6.1: retain safe traffic thresholds, nil-report guard, Node child output drain fix, and custom navigation while adopting MoeJS and unified metric queries.",
     "Retain October 24 security dependency/toolchain versions; never replace production with the official image."
-  ]
+  ],
+  "review_2026_11_12": {
+    "backend_head": "62af910",
+    "frontend_head": "05c3bad",
+    "backend_equivalent_fixes": [
+      "63ffadd: theme extraction directory permissions",
+      "ce2c5d8: plugin-data backup path",
+      "10d9463: allow unassigned Ping tasks (runtime change only)"
+    ],
+    "frontend_equivalent_fixes": [
+      "b8f29d8: active-theme deletion warning",
+      "73bcb0d: plugin settings alignment",
+      "05c3bad: allow unassigned Ping tasks"
+    ],
+    "omitted": [
+      "GitHub workflows",
+      "upstream test removals",
+      "global animation redesign"
+    ]
+  }
 }

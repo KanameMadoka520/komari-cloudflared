@@ -99,3 +99,27 @@ func TestCanonicalTotalsRecoverLostQueueReportsAfterRestart(t *testing.T) {
 	assertMetricValues(t, s, MetricTrafficUp, r.UUID, r.UpdatedAt.Add(-time.Second), r.UpdatedAt.Add(time.Second), []float64{2})
 	assertMetricValues(t, s, MetricTrafficUncertain, r.UUID, r.UpdatedAt.Add(-time.Second), r.UpdatedAt.Add(time.Second), []float64{0})
 }
+
+func TestRestartDoesNotInventGapFromTimestampPrecision(t *testing.T) {
+	ctx := context.Background()
+	s := useReportTestStore(t, nil)
+	// Main DB observations retain nanoseconds; persisted metric timestamps use
+	// milliseconds. Restoring the same flushed sample must not imply a lost one.
+	base := time.Now().UTC().Truncate(time.Minute).Add(5*time.Second + 123456789*time.Nanosecond)
+	r := v2.Report{UUID: "precise-restart", UpdatedAt: base, Network: v2.NetworkReport{TotalUp: 100, TotalDown: 200}, Traffic: &v2.TrafficObservation{HasLifetime: true, LifetimeUp: 100, LifetimeDown: 200, HighWaterUp: 100, HighWaterDown: 200}}
+	if _, err := WriteReport(ctx, r); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Compact(ctx, base.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	deleteReportTrafficState(r.UUID)
+	r.UpdatedAt = base.Add(3 * time.Second)
+	r.Network.TotalUp, r.Network.TotalDown = 105, 207
+	r.Traffic = &v2.TrafficObservation{Up: 5, Down: 7, HasLifetime: true, LifetimeUp: 105, LifetimeDown: 207, HighWaterUp: 105, HighWaterDown: 207, PreviousAt: base}
+	if _, err := WriteReport(ctx, r); err != nil {
+		t.Fatal(err)
+	}
+	assertMetricValues(t, s, MetricTrafficUp, r.UUID, r.UpdatedAt.Add(-time.Second), r.UpdatedAt.Add(time.Second), []float64{5})
+	assertMetricValues(t, s, MetricTrafficUncertain, r.UUID, r.UpdatedAt.Add(-time.Second), r.UpdatedAt.Add(time.Second), []float64{0})
+}

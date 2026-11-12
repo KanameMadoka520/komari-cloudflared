@@ -226,9 +226,9 @@ const Node = React.memo(
               </Text>
             </Flex>
 
-          {liveData.network.incomplete && (
-            <Text size="1" color="amber" title={t("trafficCycle.incompleteHelp")}>
-              {t("trafficCycle.incomplete")}
+          {(liveData.network.incomplete || liveData.network.counterPending) && (
+            <Text size="1" color="amber" title={t(liveData.network.counterPending ? "trafficCycle.counterPendingHelp" : "trafficCycle.incompleteHelp")}>
+              {t(liveData.network.counterPending ? "trafficCycle.counterPending" : "trafficCycle.incomplete")}
             </Text>
           )}
           <Flex justify="between" hidden={isMobile}>

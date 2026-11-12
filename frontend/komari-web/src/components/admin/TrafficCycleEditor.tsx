@@ -15,7 +15,7 @@ function parseUsage(input: string): number | null {
   return Number.isSafeInteger(bytes) && bytes >= 0 ? bytes : null;
 }
 
-type Usage = { upload: number; download: number; total: number; total_mode: boolean; billing_type: string; reset_at: string | null };
+type Usage = { upload: number; download: number; total: number; total_mode: boolean; billing_type: string; reset_at: string | null; incomplete?: boolean; counter_pending?: boolean; can_rebase?: boolean };
 
 async function request(uuid: string, action = "", values?: object): Promise<Usage> {
   const response = await fetch(`/api/admin/client/${encodeURIComponent(uuid)}/traffic${action}`, {
@@ -38,6 +38,7 @@ export default function TrafficCycleEditor({ uuid, open, onSaved }: { uuid: stri
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmRecovery, setConfirmRecovery] = useState(false);
   const apply = (data: Usage) => {
     setUsage(data);
     // Keep exact bytes when opening/saving: rounded display values must never
@@ -50,7 +51,7 @@ export default function TrafficCycleEditor({ uuid, open, onSaved }: { uuid: stri
     setMode(data.total_mode || !data.reset_at ? "total" : "split");
   };
   useEffect(() => {
-    setUsage(null); setError(""); setConfirmReset(false); setMode("total");
+    setUsage(null); setError(""); setConfirmReset(false); setConfirmRecovery(false); setMode("total");
     if (!open) return;
     let cancelled = false;
     request(uuid).then((data) => { if (!cancelled) apply(data); })
@@ -72,9 +73,25 @@ export default function TrafficCycleEditor({ uuid, open, onSaved }: { uuid: stri
     } catch (err) { setError(err instanceof Error ? err.message : t("trafficCycle.failed")); }
     finally { setBusy(false); }
   };
+  const recover = async () => {
+    setBusy(true); setError("");
+    try {
+      apply(await request(uuid, "/rebase"));
+      setConfirmRecovery(false); onSaved(); toast.success(t("trafficCycle.recovered"));
+    } catch (err) { setError(err instanceof Error ? err.message : t("trafficCycle.failed")); }
+    finally { setBusy(false); }
+  };
   return <SettingCardCollapse title={t("trafficCycle.title")}>
     <Flex direction="column" gap="3">
       <Text size="2" color="gray">{t("trafficCycle.description")}</Text>
+      {usage?.counter_pending ? <Flex direction="column" gap="2">
+        <Text size="2" color="orange">{t("trafficCycle.counterPending")}</Text>
+        <Text size="1" color="gray">{t("trafficCycle.counterPendingHelp")}</Text>
+        {usage.can_rebase && (confirmRecovery ? <Flex direction="column" gap="2">
+          <Text size="2">{t("trafficCycle.recoverConfirm")}</Text>
+          <Flex gap="2"><Button type="button" color="orange" disabled={busy} onClick={() => void recover()}>{t("trafficCycle.recover")}</Button><Button type="button" variant="soft" disabled={busy} onClick={() => setConfirmRecovery(false)}>{t("common.cancel")}</Button></Flex>
+        </Flex> : <Button type="button" variant="soft" color="orange" disabled={busy} onClick={() => setConfirmRecovery(true)}>{t("trafficCycle.recover")}</Button>)}
+      </Flex> : usage?.incomplete && <Text size="1" color="gray">{t("trafficCycle.incompleteHelp")}</Text>}
       {usage && <Text size="2">{t("trafficCycle.current")}: {formatBytes(usage.total)}</Text>}
       {usage?.reset_at && <Text size="1" color="gray">{t("trafficCycle.since")}: {new Date(usage.reset_at).toLocaleString()}</Text>}
       {usage && <Text size="1" color="gray">{t("trafficCycle.billingRule", { rule: t(`trafficCycle.rules.${usage.billing_type || "max"}`, { defaultValue: usage.billing_type || "max" }) })}</Text>}

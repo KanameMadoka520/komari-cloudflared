@@ -211,7 +211,13 @@ func extractAndValidateTheme(zipPath string) (models.Theme, error) {
 		}
 
 		if f.FileInfo().IsDir() {
-			os.MkdirAll(path, f.FileInfo().Mode())
+			// Always create directories with 0755. Theme archives are often
+			// built on systems where directory entries end up with 0664 (no
+			// execute bit); reusing that mode makes the directory unreadable
+			// and every subsequent file write inside it fails with EACCES.
+			if err := os.MkdirAll(path, 0o755); err != nil {
+				return themeInfo, fmt.Errorf("创建目录失败: %v", err)
+			}
 			continue
 		}
 

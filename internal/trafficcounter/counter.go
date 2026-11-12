@@ -2,7 +2,10 @@
 // decreasing aggregate has reset. Its state must survive process restarts.
 package trafficcounter
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 type Direction struct {
 	HighWater int64 `json:"high_water"`
@@ -15,6 +18,66 @@ type State struct {
 	Down        Direction `json:"down"`
 	Epoch       uint64    `json:"epoch,omitempty"`
 	Bits        uint8     `json:"bits,omitempty"`
+	Uptime      int64     `json:"uptime,omitempty"`
+	ObservedAt  int64     `json:"observed_at,omitempty"` // Unix seconds, paired with Uptime
+}
+
+// AdvanceObserved uses host uptime only to establish a new baseline after an
+// observed reboot. It never counts the new raw snapshot as fresh traffic: some
+// agents retain software/monthly counters across boots. A lower uptime and a
+// boot-time shift of over two minutes are both required to tolerate sampling
+// delay, rounding and clock jitter. Interface dips during the same boot retain
+// their high-water protection. Missing uptime leaves legacy behavior unchanged.
+func (s State) AdvanceObserved(up, down int64, epoch uint64, bits uint8, uptime int64, at time.Time) (State, Delta, error) {
+	if err := Validate(up, down, epoch, bits); err != nil {
+		return s, Delta{}, err
+	}
+	rebased := false
+	if s.Initialized && s.Epoch == 0 && epoch == 0 && s.Uptime > 0 && uptime > 0 &&
+		s.ObservedAt > 0 && at.Unix() >= s.ObservedAt && s.Uptime-uptime > 120 &&
+		at.Unix()-uptime > s.ObservedAt-s.Uptime+120 {
+		if up < s.Up.HighWater {
+			s.Up = Direction{HighWater: up}
+			rebased = true
+		}
+		if down < s.Down.HighWater {
+			s.Down = Direction{HighWater: down}
+			rebased = true
+		}
+	}
+	next, delta, err := s.Advance(up, down, epoch, bits)
+	if err != nil {
+		return s, Delta{}, err
+	}
+	// Old/missing explicit generations must not replace accepted boot metadata.
+	if uptime > 0 && at.Unix() > 0 && (s.Epoch == 0 || epoch >= s.Epoch) {
+		next.Uptime, next.ObservedAt = uptime, at.Unix()
+	}
+	delta.Uncertain = delta.Uncertain || rebased
+	return next, delta, nil
+}
+
+// RebasePending is an explicit administrative acknowledgement of a changed
+// legacy counter domain. Retain all account totals and only replace directions
+// currently below their high-water marks. It is never a billing reset.
+func (s State) RebasePending(up, down int64) (State, error) {
+	if err := Validate(up, down, s.Epoch, s.Bits); err != nil {
+		return s, err
+	}
+	if !s.Initialized || s.Epoch != 0 {
+		return s, fmt.Errorf("only legacy counters can be rebased; explicit counter generations must be repaired on the agent")
+	}
+	changed := false
+	if s.Up.Pending && up < s.Up.HighWater {
+		s.Up, changed = Direction{HighWater: up}, true
+	}
+	if s.Down.Pending && down < s.Down.HighWater {
+		s.Down, changed = Direction{HighWater: down}, true
+	}
+	if !changed {
+		return s, fmt.Errorf("no decreased counter is waiting for recovery")
+	}
+	return s, nil
 }
 
 type Delta struct {

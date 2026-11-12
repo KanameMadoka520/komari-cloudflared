@@ -31,6 +31,7 @@ export type Record = {
     cycleTotal?: number;
     totalMode?: boolean;
     incomplete?: boolean;
+	  counterPending?: boolean;
   };
   connections: {
     tcp: number;

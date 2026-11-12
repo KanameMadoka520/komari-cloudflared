@@ -42,7 +42,7 @@ from the upper quarter to the lower quarter counts the full modular tail. Other
 decreases are uncertain. Sampling cannot prove or recover multiple unseen wraps;
 agents should prefer durable 64-bit software totals.
 
-The bundled server patch does not upgrade remote agent binaries. Existing agents
+The server patch does not upgrade remote agent binaries. Existing agents
 continue to use conservative legacy accounting until a compatible agent is
 implemented and deployed. This protocol is a contract, not a claim that existing
 agent boot identifiers satisfy it.
@@ -73,3 +73,47 @@ The sticky account-level incomplete flag means a retained total contains at leas
 one uncertain interval. A report's period-level marker refers to uncertainty in
 that specific period. These flags should not be cleared merely by rebooting or
 calibrating one billing value: lifetime uncertainty can remain.
+
+
+## 2026-11-12: resuming collection and distinguishing current health
+
+The server persists the uptime paired with each observation inside its existing
+counter state. For legacy counters, a drop in host uptime of more than two minutes
+combined with an estimated boot-time advance of more than two minutes establishes
+a new baseline for directions below their old high-water marks. It does not add
+the first post-boot raw snapshot as traffic. This avoids duplicating software
+counters that persist across boots while allowing subsequent deltas to accumulate
+immediately. Missing uptime, same-boot interface dips and explicit generations
+retain the existing conservative policy. A server restart restores this evidence;
+an Agent reconnect by itself does not reset anything. This is useful evidence
+from a legacy report, not a replacement for durable per-interface Agent counters.
+
+For an already blocked node or a permanent interface change, administrators can
+POST `/api/admin/client/:uuid/traffic/rebase`, or call
+`admin:rebaseClientTrafficCounters`. The node's traffic-cycle editor exposes this
+as Recover traffic collection with confirmation. Only pending legacy directions
+can be rebased, using a main-DB observation no older than two minutes. Explicit
+generations, healthy counters, missing nodes and stale observations are rejected.
+The operation is serialized with ingestion, records an audit entry and changes
+only the counter state and retained uncertainty flag. Lifetime totals, current
+billing usage/calibration, timestamps and existing history are preserved. If the
+operator mistakes a temporary dip for a permanent change, a later rebound can
+recount old bytes, so the confirmation matters.
+
+`common:getNodesLatestStatus` adds `traffic_counter_pending`; the traffic admin
+response adds `counter_pending`, `can_rebase` and `observed_at`. The frontend now
+distinguishes a current blocked counter from a historical gap. A sticky lifetime
+incomplete flag is retained rather than pretending earlier gaps disappeared.
+
+A separately reproduced false positive came from restoring metric timestamps at
+millisecond precision and comparing them with nanosecond main-DB timestamps.
+Quality checks now compare at storage precision. A clean restart no longer
+creates a fake incomplete interval; actual lost queued observations still bridge
+accepted totals and retain a quality marker.
+
+Existing historical overcounts from older code and unmeasured reset intervals
+are not rewritten. Calibration can align billing with the provider, but does not
+supply trustworthy historical timestamps or directional totals. To reduce future
+ambiguity, pin agents to the intended WAN interface with `--include-nics`, avoid
+counting changing VPN/virtual interfaces, avoid agent-side monthly rotation when
+the server owns billing cycles, and use durable Agent counters where available.

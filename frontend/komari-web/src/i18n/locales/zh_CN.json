@@ -932,7 +932,8 @@
       "uncategorized": "未分类",
       "utility": "系统与工具"
     },
-    "market_category": "插件分类"
+    "market_category": "插件分类",
+    "config_select_plugin": "请在左侧选择要配置的插件"
   },
   "pprof": {
     "capture_duration": "CPU 与 trace 采集时长",
@@ -1637,7 +1638,8 @@
     "upload_success": "主题上传成功",
     "uploading": "正在上传主题...",
     "version": "版本",
-    "zip_files_only": "仅支持 .zip 格式"
+    "zip_files_only": "仅支持 .zip 格式",
+    "delete_active_warning": "主题 \"{{themeName}}\" 正在使用。继续删除将切换到默认主题，并删除此主题。此操作不可撤销。"
   },
   "time": {
     "ago": "前",
@@ -1662,8 +1664,8 @@
   "warn_https": "当前连接不是 HTTPS！您的敏感数据存在严重风险。请立即采取措施确保连接安全！复制操作可能无法使用！",
   "warn_websocket": "RPC2 请求失败，请检查网络连接或服务器状态！",
   "trafficCycle": {
-    "incomplete": "流量统计不完整",
-    "incompleteHelp": "部分时段无法可靠计量，显示用量可能偏低。",
+    "incomplete": "历史存在统计缺口",
+    "incompleteHelp": "历史上部分时段无法精确计量；计数正常时，新流量仍持续累计。旧缺口无法自动补齐，计费用量可按服务商数据校准。",
     "title": "流量周期",
     "description": "重置本周期流量，或按服务商面板校准当前已用量。保存后从填写的数值继续累计。",
     "current": "当前计费已用",
@@ -1694,7 +1696,12 @@
       "max": "上下行取较大值",
       "min": "上下行取较小值"
     },
-    "cycleUsage": "本周期已用"
+    "cycleUsage": "本周期已用",
+    "counterPending": "计数回落，部分增量待恢复",
+    "counterPendingHelp": "Agent 当前计数低于此前记录，该方向暂缓累计以防重复计算。确认机器重启或网卡永久变更后，可在节点的“流量周期”中恢复采集。",
+    "recover": "恢复流量采集",
+    "recoverConfirm": "请确认计数回落来自机器重启或网卡永久变更。将以最近一次上报重新建立计数基线，保留现有总流量、计费已用量和历史记录，不补算无法确认的旧流量。如果只是临时回落，错误确认可能导致恢复后的流量重复计算。",
+    "recovered": "已恢复流量采集，原有累计数据已保留"
   },
   "dashboardLayout": {
     "cancelled": "已取消移动",
