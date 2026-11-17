@@ -39,6 +39,7 @@ export interface TerminalWorkspaceProps {
   onToggleUseRegex: () => void;
   onCloseSearch: () => void;
   onApiChange: (id: string, api: TerminalSessionApi | null) => void;
+  onLatencyChange: (id: string, latencyMs: number | null) => void;
   onToggleSidebar: () => void;
   onSidebarTabChange: (tab: "clipboard" | "files") => void;
   onStartDragging: (event: ReactMouseEvent | ReactTouchEvent) => void;
@@ -85,6 +86,7 @@ const TerminalWorkspace = ({
   onToggleUseRegex,
   onCloseSearch,
   onApiChange,
+  onLatencyChange,
   onToggleSidebar,
   onSidebarTabChange,
   onStartDragging,
@@ -130,6 +132,7 @@ const TerminalWorkspace = ({
                 twoFaEnabled={twoFaEnabled}
                 disconnectMessage={disconnectMessage}
                 onApiChange={(api) => onApiChange(tab.id, api)}
+                onLatencyChange={(latency) => onLatencyChange(tab.id, latency)}
               />
             ))}
           {tabs.length === 0 && (

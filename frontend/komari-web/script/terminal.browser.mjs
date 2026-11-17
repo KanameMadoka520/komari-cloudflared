@@ -1,0 +1,66 @@
+import assert from "node:assert/strict";
+const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || "playwright");
+const browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_PATH ? { executablePath: process.env.BROWSER_PATH } : {}) });
+const base = process.env.TEST_BASE_URL || "http://127.0.0.1:5173";
+const errors = [];
+try {
+ const context = await browser.newContext({ serviceWorkers: "block", locale: "zh-CN" });
+ const sockets = [], frames = [];
+ await context.routeWebSocket("**/api/admin/client/test-node/terminal*", (socket) => {
+  sockets.push(socket);
+  socket.onMessage((data) => {
+   if (typeof data !== "string") return;
+   const frame = JSON.parse(data); frames.push(frame);
+   if (frame.type === "heartbeat") socket.send(data);
+  });
+ });
+ const page = await context.newPage();page.on("pageerror", (err) => errors.push(err.message));
+ await page.goto(base+"/script/fixtures/terminal.html");
+ await page.waitForFunction(() => !!window.terminalApi);
+ while (!sockets.length) await page.waitForTimeout(50);
+ sockets[0].send(JSON.stringify({ type: "assigned", request_id: "retained-session" }));
+ sockets[0].send(JSON.stringify({ type: "ready" }));
+ sockets[0].send(Buffer.from("PRESERVED OUTPUT\r\n"));
+ await page.waitForFunction(() => window.terminalApi.exportText().includes("PRESERVED OUTPUT"));
+ await page.waitForFunction(() => window.latency > 0);
+ sockets[0].send(JSON.stringify({ type: "future_control", secret: "MUST_NOT_PRINT" }));
+ sockets[0].send("LEGACY ERROR TEXT");
+ await page.waitForFunction(() => window.terminalApi.exportText().includes("LEGACY ERROR TEXT"));
+ assert.equal(await page.evaluate(() => window.terminalApi.exportText().includes("MUST_NOT_PRINT")),false);
+ await page.evaluate(() => { window.changeSettings(); window.changeLanguage(); });
+ await page.waitForFunction(() => window.terminalApi.terminal.options.fontSize === 20);
+ await page.waitForTimeout(250);assert.equal(sockets.length,1);
+ assert.ok(await page.evaluate(() => window.terminalApi.exportText().includes("PRESERVED OUTPUT")));
+ console.log("PASS control/output separation, heartbeat RTT, settings/language preserve socket and buffer");
+ sockets[0].close({ code: 1011, reason: "simulated network break" });
+ await page.waitForTimeout(1400);assert.equal(sockets.length,2);
+ assert.equal(new URL(sockets[1].url()).searchParams.get("request_id"),"retained-session");
+ sockets[1].send(JSON.stringify({ type: "ready" }));
+ sockets[1].send(JSON.stringify({ type: "abort" }));
+ await page.waitForTimeout(100);assert.equal(sockets.length,2);
+ sockets[1].send(JSON.stringify({ type: "terminate" }));sockets[1].close();
+ await page.waitForTimeout(1400);assert.equal(sockets.length,2);
+ console.log("PASS network reconnect reuses session, abort retains connection, terminate stops retries");
+ await page.reload();await page.waitForFunction(() => !!window.terminalApi);
+ await page.waitForTimeout(100);await page.evaluate(() => window.hideTerminal());await page.waitForTimeout(100);
+ assert.ok(frames.some((frame) => frame.type === "terminate"));
+ console.log("PASS closing terminal explicitly terminates the session");
+ const requests=[];
+ await context.route("**/api/admin/logs?**",async route => {
+  const url=new URL(route.request().url());requests.push(url);
+  await route.fulfill({json:{data:{logs:[{id:1,msg_type:"terminal",ip:"127.0.0.1",uuid:"node-12345678",time:"2026-11-17T00:00:00Z",message:"TEST LOG DETAILS"}],total:1}}});
+ });
+ await page.goto(base+"/script/fixtures/terminal.html?logs");
+ await page.getByText("TEST LOG DETAILS",{exact:true}).waitFor();
+ await page.getByRole("textbox").fill("unique query");await page.waitForTimeout(500);
+ assert.equal(requests.at(-1).searchParams.get("q"),"unique query");
+ await page.getByRole("combobox").first().click();await page.getByRole("option",{name:/终端|Terminal/i}).click();await page.waitForTimeout(200);
+ assert.equal(requests.at(-1).searchParams.get("msg_type"),"terminal");
+ await page.getByRole("combobox").last().click();await page.getByRole("option",{name:"50",exact:true}).click();await page.waitForTimeout(200);
+ assert.equal(requests.at(-1).searchParams.get("limit"),"50");assert.equal(requests.at(-1).searchParams.get("page"),"1");
+ await page.getByRole("button",{name:/日志详情|Log detail/i}).click();await page.getByRole("dialog").waitFor();
+ assert.ok((await page.getByRole("dialog").innerText()).includes("node-12345678"));
+ console.log("PASS log search, type filter, page size, and full details");
+ assert.deepEqual(errors,[]);
+ await context.close();
+} finally { await browser.close(); }

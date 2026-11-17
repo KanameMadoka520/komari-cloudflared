@@ -110,7 +110,7 @@ func defaultXtermJSSettings() XtermJSSettings {
 	return XtermJSSettings{
 		TerminalOptions: &TerminalOptions{
 			CursorBlink:     boolPtr(true),
-			ConvertEol:      boolPtr(true),
+			ConvertEol:      boolPtr(false),
 			FontFamily:      defaultXtermJSFontFamily,
 			FontSize:        defaultXtermJSFontSize,
 			MacOptionIsMeta: boolPtr(true),
@@ -129,7 +129,7 @@ func normalizeXtermJSSettings(input XtermJSSettings) (XtermJSSettings, error) {
 	if input.TerminalOptions != nil {
 		options := *input.TerminalOptions
 		options.CursorBlink = boolOrDefault(input.TerminalOptions.CursorBlink, true)
-		options.ConvertEol = boolOrDefault(input.TerminalOptions.ConvertEol, true)
+		options.ConvertEol = boolOrDefault(input.TerminalOptions.ConvertEol, false)
 		options.MacOptionIsMeta = boolOrDefault(input.TerminalOptions.MacOptionIsMeta, true)
 
 		if fontFamily := strings.TrimSpace(input.TerminalOptions.FontFamily); fontFamily != "" {

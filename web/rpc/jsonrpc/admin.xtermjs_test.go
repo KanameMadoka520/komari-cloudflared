@@ -99,3 +99,15 @@ func TestXtermjsPermission(t *testing.T) {
 		t.Error("admin must access admin:setXtermjsSettings")
 	}
 }
+
+func TestNormalizeXtermJSEolPreservesExplicitPreference(t *testing.T) {
+	for _, tc := range []struct {
+		input *bool
+		want  bool
+	}{{nil, false}, {boolPtr(true), true}, {boolPtr(false), false}} {
+		out, err := normalizeXtermJSSettings(XtermJSSettings{TerminalOptions: &TerminalOptions{ConvertEol: tc.input}})
+		if err != nil || out.TerminalOptions.ConvertEol == nil || *out.TerminalOptions.ConvertEol != tc.want {
+			t.Fatalf("EOL default/preference changed: %#v, %v", out, err)
+		}
+	}
+}

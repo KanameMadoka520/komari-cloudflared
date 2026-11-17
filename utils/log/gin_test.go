@@ -33,3 +33,30 @@ func TestGinLoggerFormatsCompletedRequest(t *testing.T) {
 		t.Fatalf("Gin log must omit query string: %q", line)
 	}
 }
+
+func TestGinLoggerKeepsFailuresAndAPIButSkipsSuccessfulAssets(t *testing.T) {
+	previous := defaultLogger
+	t.Cleanup(func() { defaultLogger = previous })
+	for _, tc := range []struct {
+		path   string
+		status int
+		logged bool
+	}{
+		{"/assets/app.js", 200, false}, {"/admin/dashboard", 200, false},
+		{"/assets/app.js", 304, false}, {"/assets/missing.js", 404, true},
+		{"/", 500, true}, {"/api/version", 200, true}, {"/ping", 200, true},
+	} {
+		var output bytes.Buffer
+		defaultLogger = slog.New(NewConsoleHandler(&output, slog.LevelDebug))
+		router := gin.New()
+		router.Use(GinLogger())
+		router.GET(tc.path, func(c *gin.Context) { c.Status(tc.status) })
+		router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", tc.path+"?token=secret", nil))
+		if got := output.Len() > 0; got != tc.logged {
+			t.Errorf("%s %d logged=%v want=%v", tc.path, tc.status, got, tc.logged)
+		}
+		if bytes.Contains(output.Bytes(), []byte("secret")) {
+			t.Fatal("query credential leaked")
+		}
+	}
+}

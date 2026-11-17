@@ -52,5 +52,28 @@
       "upstream test removals",
       "global animation redesign"
     ]
+  },
+  "review_2026_11_17": {
+    "backend_head": "6d81fd9b6b5306d131b7bdaf3e57abd5e1d2888b",
+    "frontend_head": "5fac7900ff101e07159cac4f470793bcc6e448c6",
+    "official_snapshot": "Snapshot-2611171502",
+    "stable_version": "1.6.1",
+    "backend_equivalent_updates": [
+      "a51f856 / cf01353: terminal assigned/ready/abort/terminate control protocol, retained peer on reconnect, heartbeat forwarding and single-reader pumps",
+      "7a68cc7: admin logs search and type query parameters",
+      "6d81fd9: omit successful non-API resource request logs; retain failures and query redaction"
+    ],
+    "frontend_equivalent_updates": [
+      "e82517f / 5fac790: terminal reconnect, waiting hints, live settings/language changes and optional heartbeat RTT",
+      "f5ce038 / eb46b54: searchable/filterable logs with details, copy and working page-size selection adapted to this fork without upstream route-query dependencies",
+      "0fc777e: disable automatic EOL conversion by default; preserve explicitly saved preferences"
+    ],
+    "fork_adaptations": [
+      "Keep v1 terminal request dispatch, clipboard sidebar, xterm settings and all traffic recovery/accounting behavior.",
+      "Send both terminate and legacy close to end Agent PTYs.",
+      "Ignore obsolete connection termination and cleanup callbacks after reattach; stale forwarding goroutines return.",
+      "Keep existing global animations and settings layouts instead of importing upstream 4f1c482 visual redesign."
+    ],
+    "validation": "Local Go tests/vet/race, frontend build/upgrade tests, mocked browser regression and isolated production-data clone before deployment; no GitHub Actions."
   }
 }

@@ -659,7 +659,33 @@
     "request_failed": "Login failed. Please try again."
   },
   "logs": {
-    "title": "Logs"
+    "title": "Logs",
+    "filter_all_types": "All types",
+    "filter_type": "Filter by type",
+    "search_placeholder": "Search message, IP or UUID",
+    "per_page": "Per page",
+    "showing": "Showing {{from}}–{{to}} of {{total}}",
+    "no_entries": "No log entries",
+    "load_failed": "Failed to load logs",
+    "empty": "No log entries yet",
+    "no_matches": "No matching logs",
+    "clear_filters": "Clear filters",
+    "detail_title": "Log detail",
+    "field_time": "Time",
+    "field_ip": "IP",
+    "field_uuid": "UUID",
+    "field_type": "Type",
+    "field_message": "Message",
+    "type": {
+      "info": "Info",
+      "warn": "Warning",
+      "error": "Error",
+      "login": "Login",
+      "logout": "Logout",
+      "terminal": "Terminal",
+      "renewal": "Renewal",
+      "unknown": "Unknown"
+    }
   },
   "market": {
     "add_source": "Add source",
@@ -1576,7 +1602,8 @@
       "match_case": "Match Case",
       "use_regex": "Use Regular Expression",
       "close": "Close"
-    }
+    },
+    "waiting_agent": "Waiting for the agent to connect..."
   },
   "theme": {
     "active": "Active",
