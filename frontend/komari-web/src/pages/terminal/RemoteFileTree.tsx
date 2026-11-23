@@ -22,6 +22,14 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+
+/** 目录第一次列出前的占位行（文件名宽度，按数字宽计） */
+import {
+  CONTENT_MOTION,
+  MOTION_SPRING,
+  MOTION_TRANSITION,
+} from "@/lib/motion";
 import { useRemoteFileService } from "./useRemoteFileService";
 import {
   FileContextMenu,
@@ -163,6 +171,7 @@ export const RemoteFileTree = ({
   const treeScrollRef = useRef<HTMLDivElement | null>(null);
   const marqueeStartRef = useRef<number | null>(null);
   const marqueeActiveRef = useRef(false);
+  const justMarqueeSelectedRef = useRef(false);
   const { contextMenuPosition, contextMenuOpen, openContextMenu, closeContextMenu } = useContextMenu();
 
   const loadDirectory = useCallback(
@@ -263,9 +272,11 @@ export const RemoteFileTree = ({
     const rect = container.getBoundingClientRect();
     marqueeStartRef.current = event.clientY - rect.top + container.scrollTop;
     marqueeActiveRef.current = false;
+    justMarqueeSelectedRef.current = false;
     setMarqueeRange(null);
     const handleMove = (moveEvent: MouseEvent) => updateMarqueeSelection(moveEvent.clientY);
     const handleUp = () => {
+      justMarqueeSelectedRef.current = marqueeActiveRef.current;
       marqueeStartRef.current = null;
       marqueeActiveRef.current = false;
       setMarqueeRange(null);
@@ -704,23 +715,46 @@ export const RemoteFileTree = ({
       (dragTarget?.kind === "directory" && dragTarget.path === file.path) ||
       (dragTarget?.kind === "file" && dragTarget.path === file.path);
     return (
-      <div key={file.path}>
+      /*
+        注意两个「不要」：
+        1) 不要在这一层写 whileTap —— 这一层是「节点 + 其全部子节点」的容器，
+           按压反馈会把整棵子树一起缩放，看起来像资源管理器整体抖了一下。
+           按压反馈只给下面那一行按钮。
+        2) 不要在这一层写 layout —— 同理，它会监听整棵子树的高度变化，
+           展开/收起时父节点会跟着做位移动画，出现层层错位的抖动。
+           子项增删的补位交给 Collapse 的高度弹簧就够了。
+      */
+      <motion.div
+        key={file.path}
+        initial={CONTENT_MOTION.item.initial}
+        animate={CONTENT_MOTION.item.animate}
+        exit={CONTENT_MOTION.item.exit}
+        transition={{
+          y: MOTION_SPRING.snappy,
+          scale: MOTION_SPRING.snappy,
+          opacity: MOTION_TRANSITION.fade,
+        }}
+      >
+        {/*
+          按压反馈只作用在这一行按钮上（而不是外层子树容器），
+          所以点哪一项就只有哪一项轻微压扁。
+        */}
         <button
           type="button"
           data-tree-path={normalizedPath}
           draggable={!marqueeActiveRef.current && marqueeRange === null && renamingPath !== file.path}
           className={`my-0.5 flex h-6 w-full items-center gap-1 rounded-[4px] border-0 pr-1 text-left text-xs transition-colors ${
             activePath === file.path
-              ? "bg-[#37373d] text-white"
+              ? "bg-white/[0.16] text-white"
               : selectedPathsRef.current.has(file.path)
-                ? "bg-[#264f78] text-white"
+                ? "bg-sky-500/25 text-white"
               : isContextTarget
-                ? "bg-[#2a2d2e] text-[#eeeeee]"
+                ? "bg-white/[0.1] text-[#eeeeee]"
                 : isDropTarget
-                  ? "bg-[#20364a] text-[#eeeeee]"
-                  : "bg-transparent text-[#cccccc] hover:bg-[#2a2d2e]"
+                  ? "bg-sky-500/20 text-[#eeeeee]"
+                  : "bg-transparent text-[#d4d4d4] hover:bg-white/[0.08]"
           }`}
-          style={{ paddingLeft: `${Math.max(4, depth * 12 + 4)}px` }}
+          style={{ paddingLeft: `${Math.max(4, depth * 12 + 4)}px`, transformOrigin: "left center" }}
           onDragStart={(event) => {
             if (marqueeStartRef.current !== null) {
               event.preventDefault();
@@ -796,7 +830,7 @@ export const RemoteFileTree = ({
                   cancelInlineRename();
                 }
               }}
-              className="h-5 min-w-0 flex-1 rounded-[4px] border border-[#007acc] bg-[#1e1e1e] px-1 text-xs text-[#eeeeee] outline-none"
+              className="h-5 min-w-0 flex-1 rounded-[4px] border border-[#007acc] bg-black/50 px-1 text-xs text-[#eeeeee] outline-none"
             />
           ) : (
             <span className="min-w-0 whitespace-nowrap">
@@ -811,46 +845,57 @@ export const RemoteFileTree = ({
           {file.is_symlink && (
             <Link2 size={11} className="ml-auto mr-1 shrink-0 text-[#6a9955]" />
           )}
-          {isLoading && <span className="ml-auto shrink-0"><Loading compact /></span>}
+          {/* 已有子项的刷新才显示行内转圈；第一次展开由下方占位行骨架表示 */}
+          {isLoading && children[file.path] !== undefined && <span className="ml-auto shrink-0"><Loading compact /></span>}
         </button>
-        {file.is_dir && isExpanded &&
-          nested
-            .filter((child) => !ancestors.has(normalizeRemotePath(child.path)))
-            .map((child) => {
-              const nextAncestors = new Set(ancestors);
-              nextAncestors.add(normalizedPath);
-              return renderNode(child, depth + 1, nextAncestors);
-            })}
-        {file.is_dir && isExpanded && creatingEntry?.parentPath === file.path && (
-          <div
-            data-tree-spacer=""
-            className="my-0.5 flex h-6 items-center gap-1"
-            style={{ paddingLeft: `${Math.max(4, (depth + 1) * 12 + 4)}px` }}
-          >
-            <span className="w-[13px] shrink-0" />
-            {creatingEntry.kind === "folder"
-              ? <Folder size={15} className="shrink-0 text-[#dcb67a]" />
-              : <FileCode2 size={14} className="shrink-0 text-[#8da9c4]" />}
-            <input
-              autoFocus
-              value={creatingEntry.name}
-              onChange={(event) => setCreatingEntry({ ...creatingEntry, name: event.target.value })}
-              onBlur={() => void submitCreate()}
-              onKeyDown={(event) => {
-                event.stopPropagation();
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  void submitCreate();
-                } else if (event.key === "Escape") {
-                  event.preventDefault();
-                  cancelCreate();
-                }
-              }}
-              className="h-5 min-w-0 flex-1 rounded-[4px] border border-[#007acc] bg-[#1e1e1e] px-1 text-xs text-[#eeeeee] outline-none"
-            />
+        {file.is_dir && (
+          // content 层：目录展开用高度弹簧，收起时保留当前速度顺势转向
+          <div hidden={!isExpanded}>
+            {isExpanded && isLoading && children[file.path] === undefined && <Loading compact />}
+            <AnimatePresence initial={false}>
+              {isExpanded &&
+                nested
+                  .filter((child) => !ancestors.has(normalizeRemotePath(child.path)))
+                  .map((child) => renderNode(child, depth + 1, new Set(ancestors).add(normalizedPath)))}
+              {isExpanded && creatingEntry?.parentPath === file.path && (
+                <motion.div
+                  key={`${file.path}-creating`}
+                  initial={CONTENT_MOTION.item.initial}
+                  animate={CONTENT_MOTION.item.animate}
+                  exit={CONTENT_MOTION.item.exit}
+                  transition={MOTION_SPRING.snappy}
+                  data-tree-spacer=""
+                  className="my-0.5 flex h-6 items-center gap-1"
+                  style={{ paddingLeft: `${Math.max(4, (depth + 1) * 12 + 4)}px` }}
+                >
+                  <span className="w-[13px] shrink-0" />
+                  {creatingEntry.kind === "folder"
+                    ? <Folder size={15} className="shrink-0 text-[#dcb67a]" />
+                    : <FileCode2 size={14} className="shrink-0 text-[#8da9c4]" />}
+                  <input
+                    autoFocus
+                    value={creatingEntry.name}
+                    onChange={(event) => setCreatingEntry({ ...creatingEntry, name: event.target.value })}
+                    onBlur={() => void submitCreate()}
+                    onKeyDown={(event) => {
+                      event.stopPropagation();
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void submitCreate();
+                      } else if (event.key === "Escape") {
+                        event.preventDefault();
+                        cancelCreate();
+                      }
+                    }}
+                    className="h-5 min-w-0 flex-1 rounded-[4px] border border-[#007acc] bg-black/50 px-1 text-xs text-[#eeeeee] outline-none"
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
           </div>
         )}
-      </div>
+      </motion.div>
     );
   };
 
@@ -877,7 +922,7 @@ export const RemoteFileTree = ({
     >
       <div
         ref={treeScrollRef}
-        className={`min-h-0 flex-1 select-none overflow-auto py-1 ${
+        className={`min-h-0 flex-1 select-none overflow-auto pt-1 pb-8 pl-4 pr-1 ${
           dragTarget?.kind === "root" ? "ring-1 ring-inset ring-[#55a7e0]" : ""
         }`}
         onDragOver={(event) => handleDragOver(event, { kind: "root" })}
@@ -886,6 +931,17 @@ export const RemoteFileTree = ({
         }}
         onDrop={(event) => void handleDrop(event, { kind: "root" })}
         onMouseDown={startMarqueeSelection}
+        onClick={(event) => {
+          if (justMarqueeSelectedRef.current) {
+            justMarqueeSelectedRef.current = false;
+            return;
+          }
+          if (!(event.target as HTMLElement).closest("[data-tree-path],[data-tree-spacer]")) {
+            selectedPathsRef.current = new Set();
+            setSelectedPath(null);
+            lastSelectedPathRef.current = null;
+          }
+        }}
         onContextMenu={(event) => {
           setContextTarget(null);
           openContextMenu(event);
@@ -918,9 +974,8 @@ export const RemoteFileTree = ({
 		  if (files.length) void uploadFiles(files, uploadTargetRef.current || rootPath);
 		}}
 	  />
-      {uploadProgress.length > 0 && (
-        <TerminalUploadProgress progress={uploadProgress} onCancel={cancelUpload} />
-      )}
+      {/* 常驻挂载：TerminalUploadProgress 内部用 AnimatePresence 收起，外面再条件渲染会把退场动画截掉 */}
+      <TerminalUploadProgress progress={uploadProgress} onCancel={cancelUpload} />
 
       <FileContextMenu
         open={contextMenuOpen}

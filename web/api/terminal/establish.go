@@ -16,6 +16,16 @@ func EstablishConnection(c *gin.Context) {
 	authenticatedString, hasAuthenticatedUUID := authenticatedUUID.(string)
 	if !exists || session == nil ||
 		(hasAuthenticatedUUID && authenticatedString != "" && authenticatedString != session.UUID) {
+		if (!exists || session == nil) &&
+			peekTerminatedSession(sessionID, hasAuthenticatedUUID, authenticatedString) &&
+			api.IsWebSocketUpgrade(c) {
+			if conn, err := api.UpgradeSafeConn(c, api.EnableWebSocketCompression); err == nil {
+				consumeTerminatedSession(sessionID)
+				notifyAgentTerminate(conn)
+				_ = conn.Close()
+				return
+			}
+		}
 		c.JSON(404, gin.H{"status": "error", "error": "Session not found"})
 		return
 	}
@@ -31,7 +41,7 @@ func EstablishConnection(c *gin.Context) {
 	_, ok := attachAgent(sessionID, conn)
 	if !ok {
 		// 会话已经不在了：明确告知终态，被控端不必重连。
-		notifyTerminate(conn)
+		notifyAgentTerminate(conn)
 		_ = conn.Close()
 		return
 	}

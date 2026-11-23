@@ -545,7 +545,18 @@
       "unsaved_all": "有 {{count}} 个文件包含未保存的修改。",
       "unsaved_file": "是否保存对 {{name}} 的修改？",
       "unsaved_title": "保存修改？",
-      "word_wrap": "自动换行"
+      "word_wrap": "自动换行",
+      "open_with": "打开方式",
+      "open_with_modes": {
+        "audio": "音频",
+        "error": "错误",
+        "image": "图片",
+        "office": "Office",
+        "pdf": "PDF",
+        "text": "文本",
+        "too_large": "过大",
+        "video": "视频"
+      }
     },
     "empty": "当前目录为空",
     "group": "用户组",
@@ -1603,7 +1614,48 @@
     },
     "title": "终端",
     "title_with_sessions": "终端 - {{name}}（{{count}} 个会话）",
-    "waiting_agent": "等待被控端连接..."
+    "waiting_agent": "等待被控端连接...",
+    "close_above": "上方",
+    "close_below": "下方",
+    "recoverable": {
+      "continue": "在新标签页中继续",
+      "description": "自上次离开之后，还有 {{count}} 个终端会话在继续运行：",
+      "none_left": "可恢复的会话已在其他标签页处理或已过期",
+      "server_item": "{{name}} 共 {{count}} 个会话",
+      "terminate": "结束会话",
+      "terminate_failed": "结束会话失败，请重试",
+      "title": "可恢复的会话"
+    },
+    "settings": {
+      "background_title": "终端背景",
+      "background_blur": "背景模糊度",
+      "background_offset_x": "背景水平偏移 (X)",
+      "background_offset_y": "背景垂直偏移 (Y)",
+      "background_opacity": "背景不透明度",
+      "background_scale": "背景缩放",
+      "background_url": "背景图片 / 视频 URL",
+      "background_url_placeholder": "https://example.com/bg.webp 或 .mp4 / .webm",
+      "clear_background": "清空",
+      "decrease_blur": "减小模糊度",
+      "decrease_offset_x": "向左偏移",
+      "decrease_offset_y": "向上偏移",
+      "decrease_opacity": "降低不透明度",
+      "decrease_scale": "缩小背景",
+      "increase_blur": "增大模糊度",
+      "increase_offset_x": "向右偏移",
+      "increase_offset_y": "向下偏移",
+      "increase_opacity": "增加不透明度",
+      "increase_scale": "放大背景",
+      "refresh_hint": "设置即时生效；对于终端已输出的历史内容或部分字体渲染效果，可能需要刷新页面生效。",
+      "reset": "恢复默认"
+    },
+    "split": {
+      "down": "向下分屏",
+      "left": "向左分屏",
+      "menu": "分屏拆分",
+      "right": "向右分屏",
+      "up": "向上分屏"
+    }
   },
   "theme": {
     "active": "当前使用",

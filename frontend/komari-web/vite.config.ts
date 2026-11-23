@@ -78,13 +78,13 @@ export default defineConfig(({ mode }) => {
           start_url: base,
           icons: [
             {
-              src: "${base}assets/pwa-icon.webp",
+              src: `${base}assets/pwa-icon.webp`,
               sizes: "192x192",
               type: "image/webp",
               purpose: "maskable any",
             },
             {
-              src: "${base}assets/pwa-icon.webp",
+              src: `${base}assets/pwa-icon.webp`,
               sizes: "512x512",
               type: "image/webp",
               purpose: "maskable any",
@@ -92,24 +92,23 @@ export default defineConfig(({ mode }) => {
           ],
         },
         workbox: {
-          // HTML is rendered dynamically with theme, plugin, and site settings.
-          // Cache only immutable assets so every navigation reaches the server.
-          globPatterns: ["**/*.{js,css,ico,png,svg}"],
-          maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+          // HTML and API responses are dynamic. Precache the entry assets and
+          // cache immutable chunks on demand when an associated page opens.
+          globPatterns: ["assets/entry-*.js", "assets/index-*.css"],
+          maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
           navigateFallback: null,
+          cleanupOutdatedCaches: true,
           runtimeCaching: [
             {
-              urlPattern: /^https:\/\/api\./i,
-              handler: "NetworkFirst",
+              urlPattern: ({ sameOrigin, url }) =>
+                sameOrigin &&
+                !url.search &&
+                /\/assets\/[^/]+-[A-Za-z0-9_-]{8}\.(?:js|css|ttf|woff2?)$/.test(url.pathname),
+              handler: "CacheFirst",
               options: {
-                cacheName: "api-cache",
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365, // <== 365 days
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
+                cacheName: "komari-hashed-assets",
+                expiration: { maxEntries: 120, maxAgeSeconds: 30 * 24 * 60 * 60 },
+                cacheableResponse: { statuses: [200] },
               },
             },
           ],

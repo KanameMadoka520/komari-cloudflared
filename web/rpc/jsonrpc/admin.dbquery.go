@@ -121,16 +121,26 @@ func adminDBExec(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRp
 	}
 
 	actor, ip := auditActor(ctx)
-	auditlog.Log(ip, actor, "execute database SQL on "+target, "warn")
+	argsNote := ""
+	if len(params.Args) > 0 {
+		argsNote = fmt.Sprintf(", args=%d", len(params.Args))
+	}
 
 	result, driver, err := executeDatabase(ctx, target, statement, params.Args)
 	if err != nil {
+		summary := fmt.Sprintf("Failed to execute database SQL: target=%s%s", target, argsNote)
+		auditlog.Log(ip, actor, summary, "error")
 		return nil, rpc.MakeError(rpc.InternalError, "Failed to execute database statement: "+err.Error(), nil)
 	}
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
+		summary := fmt.Sprintf("Execute database SQL: target=%s, driver=%s%s, rows_affected=unknown", target, driver, argsNote)
+		auditlog.Log(ip, actor, summary, "warn")
 		return nil, rpc.MakeError(rpc.InternalError, "Failed to read affected row count: "+err.Error(), nil)
 	}
+
+	summary := fmt.Sprintf("Execute database SQL: target=%s, driver=%s, rows_affected=%d%s", target, driver, rowsAffected, argsNote)
+	auditlog.Log(ip, actor, summary, "warn")
 
 	var lastInsertID *int64
 	if id, err := result.LastInsertId(); err == nil {

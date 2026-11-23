@@ -554,7 +554,18 @@
       "unsaved_all": "{{count}} 件のファイルに未保存の変更があります。",
       "unsaved_file": "{{name}} への変更を保存しますか？",
       "unsaved_title": "変更を保存しますか？",
-      "word_wrap": "折り返し"
+      "word_wrap": "折り返し",
+      "open_with": "開き方",
+      "open_with_modes": {
+        "audio": "オーディオ",
+        "error": "エラー",
+        "image": "画像",
+        "office": "Office",
+        "pdf": "PDF",
+        "text": "テキスト",
+        "too_large": "サイズ超過",
+        "video": "ビデオ"
+      }
     },
     "empty": "このディレクトリは空です",
     "group": "グループ",
@@ -1567,7 +1578,48 @@
     },
     "title": "ターミナル",
     "title_with_sessions": "ターミナル - {{name}}（{{count}} セッション）",
-    "waiting_agent": "エージェントの接続を待っています..."
+    "waiting_agent": "エージェントの接続を待っています...",
+    "close_above": "上側",
+    "close_below": "下側",
+    "recoverable": {
+      "continue": "新しいタブで続行",
+      "description": "前回の離脱後も {{count}} 件のターミナルセッションが実行中です：",
+      "none_left": "復元可能なセッションはすでに処理されたか期限切れです",
+      "server_item": "{{name}}：{{count}} 件のセッション",
+      "terminate": "セッションを終了",
+      "terminate_failed": "セッションの終了に失敗しました。再試行してください",
+      "title": "復元可能なセッション"
+    },
+    "split": {
+      "down": "下に分割",
+      "left": "左に分割",
+      "menu": "ペイン分割",
+      "right": "右に分割",
+      "up": "上に分割"
+    },
+    "settings": {
+      "background_title": "ターミナル背景",
+      "background_url": "背景画像 / 動画 URL",
+      "background_url_placeholder": "https://example.com/bg.webp または .mp4 / .webm",
+      "clear_background": "クリア",
+      "background_offset_x": "背景の水平オフセット (X)",
+      "decrease_offset_x": "左へ移動",
+      "increase_offset_x": "右へ移動",
+      "background_offset_y": "背景の垂直オフセット (Y)",
+      "decrease_offset_y": "上へ移動",
+      "increase_offset_y": "下へ移動",
+      "background_scale": "背景の拡大率",
+      "decrease_scale": "縮小",
+      "increase_scale": "拡大",
+      "background_opacity": "背景の不透明度",
+      "decrease_opacity": "不透明度を下げる",
+      "increase_opacity": "不透明度を上げる",
+      "background_blur": "背景のぼかし",
+      "decrease_blur": "ぼかしを弱める",
+      "increase_blur": "ぼかしを強める",
+      "refresh_hint": "設定は即座に反映されますが、すでに出力された内容や一部のフォント描画にはページの再読み込みが必要な場合があります。",
+      "reset": "デフォルトに戻す"
+    }
   },
   "theme": {
     "active": "現在使用中",

@@ -339,7 +339,18 @@
       "unsaved_all": "{{count}} files have unsaved changes.",
       "unsaved_file": "Save changes to {{name}}?",
       "unsaved_title": "Save changes?",
-      "word_wrap": "Word Wrap"
+      "word_wrap": "Word Wrap",
+      "open_with": "Open With",
+      "open_with_modes": {
+        "audio": "Audio",
+        "error": "Error",
+        "image": "Image",
+        "office": "Office",
+        "pdf": "PDF",
+        "text": "Text",
+        "too_large": "Too Large",
+        "video": "Video"
+      }
     },
     "empty": "This directory is empty",
     "group": "Group",
@@ -1603,7 +1614,48 @@
       "use_regex": "Use Regular Expression",
       "close": "Close"
     },
-    "waiting_agent": "Waiting for the agent to connect..."
+    "waiting_agent": "Waiting for the agent to connect...",
+    "recoverable": {
+      "continue": "Continue in new tab",
+      "description": "{{count}} terminal session(s) are still running since you left:",
+      "none_left": "Recoverable sessions have already been handled or expired",
+      "server_item": "{{name}}: {{count}} session(s)",
+      "terminate": "End sessions",
+      "terminate_failed": "Failed to end sessions, please retry",
+      "title": "Recoverable Sessions"
+    },
+    "split": {
+      "down": "Split Down",
+      "left": "Split Left",
+      "menu": "Split Pane",
+      "right": "Split Right",
+      "up": "Split Up"
+    },
+    "close_above": "Above",
+    "close_below": "Below",
+    "settings": {
+      "background_title": "Terminal Background",
+      "background_url": "Background Image / Video URL",
+      "background_url_placeholder": "https://example.com/bg.webp or .mp4 / .webm",
+      "clear_background": "Clear",
+      "background_offset_x": "Background Horizontal Offset (X)",
+      "decrease_offset_x": "Decrease X offset",
+      "increase_offset_x": "Increase X offset",
+      "background_offset_y": "Background Vertical Offset (Y)",
+      "decrease_offset_y": "Decrease Y offset",
+      "increase_offset_y": "Increase Y offset",
+      "background_scale": "Background Scale",
+      "decrease_scale": "Decrease scale",
+      "increase_scale": "Increase scale",
+      "background_opacity": "Background Opacity",
+      "decrease_opacity": "Decrease opacity",
+      "increase_opacity": "Increase opacity",
+      "background_blur": "Background Blur",
+      "decrease_blur": "Decrease blur",
+      "increase_blur": "Increase blur",
+      "refresh_hint": "Settings take effect immediately; existing terminal output or certain font rendering effects may require refreshing the page to take effect.",
+      "reset": "Reset to Default"
+    }
   },
   "theme": {
     "active": "Active",

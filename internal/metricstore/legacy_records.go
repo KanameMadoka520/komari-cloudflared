@@ -296,7 +296,7 @@ func GetGPURecordsByClientAndTime(ctx context.Context, clientUUID string, start,
 			case MetricGPUMemTotal:
 				rec.MemTotal = int64(p.Value)
 			case MetricGPUTemp:
-				rec.Temperature = int(p.Value)
+				rec.Temperature = p.Value
 			}
 		}
 	}

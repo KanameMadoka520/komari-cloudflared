@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/komari-monitor/komari/database"
+	"github.com/komari-monitor/komari/database/auditlog"
 	"github.com/komari-monitor/komari/database/models"
 	"github.com/komari-monitor/komari/internal/config"
 	"github.com/komari-monitor/komari/pkg/rpc"
@@ -87,7 +88,7 @@ func adminGetOidc(_ context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpc
 	return providers, nil
 }
 
-func adminSetOidc(_ context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+func adminSetOidc(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
 	var oidcConfig models.OidcProvider
 	if err := req.BindParams(&oidcConfig); err != nil {
 		return nil, rpc.MakeError(rpc.InvalidParams, "Invalid configuration: "+err.Error(), nil)
@@ -107,5 +108,14 @@ func adminSetOidc(_ context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpc
 			return nil, rpc.MakeError(rpc.InternalError, "Failed to load OIDC provider: "+err.Error(), nil)
 		}
 	}
+	actor, ip := auditActor(ctx)
+	var fields map[string]any
+	if oidcConfig.Addition != "" {
+		_ = json.Unmarshal([]byte(oidcConfig.Addition), &fields)
+	}
+	auditlog.Log(ip, actor, auditlog.JoinLines(
+		"Update OIDC provider: provider="+oidcConfig.Name,
+		auditlog.FormatMap(fields)...,
+	), "warn")
 	return map[string]any{"message": "OIDC provider set successfully"}, nil
 }

@@ -1,15 +1,15 @@
 {
   "backend": {
     "repository": "komari-monitor/komari",
-    "tag": "1.6.1",
-    "commit": "96cf0f79d8cfdf6cc8be54fd1976bbc026d58f7f",
-    "previous_baseline": "9812acfd11 plus equivalent fixes through 13cbdca"
+    "tag": "1.6.2",
+    "commit": "ae1ae2a2e2df78dfdc262639f6d20734fd9dacbb",
+    "previous_baseline": "96cf0f79d8cfdf6cc8be54fd1976bbc026d58f7f plus equivalent updates through the 2026-11-17 review"
   },
   "frontend": {
     "repository": "komari-monitor/komari-web",
-    "tag": "1.6.1",
-    "commit": "797ca79daee6eac59164013e18bf5d098df9238c",
-    "previous_baseline": "3324844cfa347f18c83435f1ccf5634df7e5b768"
+    "tag": "1.6.2",
+    "commit": "1dba84a866b326a47d549c3cbee3aa09e2d024cc",
+    "previous_baseline": "797ca79daee6eac59164013e18bf5d098df9238c plus equivalent updates through the 2026-11-17 review"
   },
   "retained_features": [
     "cloudflared management",
@@ -75,5 +75,28 @@
       "Keep existing global animations and settings layouts instead of importing upstream 4f1c482 visual redesign."
     ],
     "validation": "Local Go tests/vet/race, frontend build/upgrade tests, mocked browser regression and isolated production-data clone before deployment; no GitHub Actions."
+  },
+  "review_2026_11_23": {
+    "backend_head": "563e30dbe5fac3acb0849310bd2d99ae6120cd67",
+    "frontend_head": "c306173c9b3274f642afc54d123fc4bc57c5b2a9",
+    "official_snapshot": "Snapshot-2611232235",
+    "stable_version": "1.6.2",
+    "backend_equivalent_updates": [
+      "7837fc7 / ee15a22 / 618534f: clamp monthly renewals to the last valid day, separate HTTP and WebSocket presence, and preserve decimal GPU temperatures",
+      "6090088 / 47460e7: recoverable terminal sessions, authenticated cleanup, single retention deadline per suspension, and WebSocket keepalive",
+      "ae1ae2a: administrator audit context and one audit entry per terminal session"
+    ],
+    "frontend_equivalent_updates": [
+      "2169b3c / 1191460 / 613fb58 / 8267dc3: splittable terminal workspaces, recoverable sessions, workbench improvements, and file manager interactions",
+      "c75c7ac: selected lazy terminal/editor loading, mobile listener and PWA cache improvements",
+      "f927bd4: stable theme card keys, terminal retry fixes, and tab-specific termination fallback"
+    ],
+    "fork_adaptations": [
+      "Preserve the command clipboard and existing shared xterm settings, including live font and palette changes. Reuse theme setting merges for the new terminal background controls.",
+      "Use stable socket ownership for termination, retain v1 dispatch, and send both modern terminate and legacy close frames to agents.",
+      "Audit actor, action, affected servers and result without duplicating raw commands or SQL text.",
+      "Keep the customized navigation, onboarding and monitoring UI and preserve the current billing and lifetime traffic model. The backend 563e30d and frontend c306173 traffic-ledger redesign remain deferred pending separate migration and behavior review."
+    ],
+    "validation": "Local Go tests/vet/race, frontend build and browser tests, and isolated production-data upgrade validation. No GitHub Actions."
   }
 }

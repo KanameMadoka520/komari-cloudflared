@@ -116,7 +116,7 @@ type GPUDeviceInfo struct {
 	MemoryTotal int64   `json:"memory_total"`
 	MemoryUsed  int64   `json:"memory_used"`
 	Utilization float64 `json:"utilization"`
-	Temperature int     `json:"temperature"`
+	Temperature float64 `json:"temperature"`
 }
 
 type RamReport struct {

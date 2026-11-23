@@ -554,7 +554,18 @@
       "unsaved_all": "有 {{count}} 個檔案包含未儲存的變更。",
       "unsaved_file": "是否儲存對 {{name}} 的變更？",
       "unsaved_title": "儲存變更？",
-      "word_wrap": "自動換行"
+      "word_wrap": "自動換行",
+      "open_with": "開啟方式",
+      "open_with_modes": {
+        "audio": "音訊",
+        "error": "錯誤",
+        "image": "圖片",
+        "office": "Office",
+        "pdf": "PDF",
+        "text": "文字",
+        "too_large": "過大",
+        "video": "影片"
+      }
     },
     "empty": "此目錄為空",
     "group": "群組",
@@ -1567,7 +1578,48 @@
     },
     "title": "終端",
     "title_with_sessions": "終端 - {{name}}（{{count}} 個工作階段）",
-    "waiting_agent": "等待被控端連線..."
+    "waiting_agent": "等待被控端連線...",
+    "close_above": "上方",
+    "close_below": "下方",
+    "recoverable": {
+      "continue": "在新分頁中繼續",
+      "description": "自上次離開之後，還有 {{count}} 個終端工作階段正在執行：",
+      "none_left": "可恢復的工作階段已在其他分頁處理或已過期",
+      "server_item": "{{name}} 共 {{count}} 個工作階段",
+      "terminate": "結束工作階段",
+      "terminate_failed": "結束工作階段失敗，請重試",
+      "title": "可恢復的工作階段"
+    },
+    "split": {
+      "down": "向下分割",
+      "left": "向左分割",
+      "menu": "分割畫面",
+      "right": "向右分割",
+      "up": "向上分割"
+    },
+    "settings": {
+      "background_title": "終端背景",
+      "background_url": "背景圖片 / 影片 URL",
+      "background_url_placeholder": "https://example.com/bg.webp 或 .mp4 / .webm",
+      "clear_background": "清空",
+      "background_offset_x": "背景水平偏移 (X)",
+      "decrease_offset_x": "向左偏移",
+      "increase_offset_x": "向右偏移",
+      "background_offset_y": "背景垂直偏移 (Y)",
+      "decrease_offset_y": "向上偏移",
+      "increase_offset_y": "向下偏移",
+      "background_scale": "背景縮放",
+      "decrease_scale": "縮小背景",
+      "increase_scale": "放大背景",
+      "background_opacity": "背景不透明度",
+      "decrease_opacity": "降低不透明度",
+      "increase_opacity": "增加不透明度",
+      "background_blur": "背景模糊度",
+      "decrease_blur": "減小模糊度",
+      "increase_blur": "增大模糊度",
+      "refresh_hint": "設定即時生效；對於終端機已輸出的歷史內容或部分字型渲染效果，可能需要重新整理頁面生效。",
+      "reset": "恢復預設"
+    }
   },
   "theme": {
     "active": "當前使用",

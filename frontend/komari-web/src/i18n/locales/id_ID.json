@@ -554,7 +554,18 @@
       "unsaved_all": "{{count}} file memiliki perubahan yang belum disimpan.",
       "unsaved_file": "Simpan perubahan ke {{name}}?",
       "unsaved_title": "Simpan perubahan?",
-      "word_wrap": "Bungkus Kata"
+      "word_wrap": "Bungkus Kata",
+      "open_with": "Buka Dengan",
+      "open_with_modes": {
+        "audio": "Audio",
+        "error": "Galat",
+        "image": "Gambar",
+        "office": "Office",
+        "pdf": "PDF",
+        "text": "Teks",
+        "too_large": "Terlalu Besar",
+        "video": "Video"
+      }
     },
     "empty": "Direktori ini kosong",
     "group": "Grup",
@@ -1567,7 +1578,48 @@
     },
     "title": "Terminal",
     "title_with_sessions": "Terminal - {{name}} ({{count}} sesi)",
-    "waiting_agent": "Menunggu agen terhubung..."
+    "waiting_agent": "Menunggu agen terhubung...",
+    "close_above": "Di atas",
+    "close_below": "Di bawah",
+    "recoverable": {
+      "continue": "Lanjutkan di tab baru",
+      "description": "Masih ada {{count}} sesi terminal yang berjalan sejak Anda terakhir keluar:",
+      "none_left": "Sesi yang dapat dipulihkan sudah ditangani atau kedaluwarsa",
+      "server_item": "{{name}}: {{count}} sesi",
+      "terminate": "Akhiri sesi",
+      "terminate_failed": "Gagal mengakhiri sesi, silakan coba lagi",
+      "title": "Sesi yang Dapat Dipulihkan"
+    },
+    "split": {
+      "down": "Bagi ke Bawah",
+      "left": "Bagi ke Kiri",
+      "menu": "Bagi Panel",
+      "right": "Bagi ke Kanan",
+      "up": "Bagi ke Atas"
+    },
+    "settings": {
+      "background_title": "Latar Belakang Terminal",
+      "background_url": "URL Gambar / Video Latar",
+      "background_url_placeholder": "https://example.com/bg.webp atau .mp4 / .webm",
+      "clear_background": "Hapus",
+      "background_offset_x": "Pergeseran Horizontal Latar (X)",
+      "decrease_offset_x": "Geser ke kiri",
+      "increase_offset_x": "Geser ke kanan",
+      "background_offset_y": "Pergeseran Vertikal Latar (Y)",
+      "decrease_offset_y": "Geser ke atas",
+      "increase_offset_y": "Geser ke bawah",
+      "background_scale": "Skala Latar",
+      "decrease_scale": "Perkecil latar",
+      "increase_scale": "Perbesar latar",
+      "background_opacity": "Opasitas Latar",
+      "decrease_opacity": "Kurangi opasitas",
+      "increase_opacity": "Tambah opasitas",
+      "background_blur": "Kabur Latar (Blur)",
+      "decrease_blur": "Kurangi kabur",
+      "increase_blur": "Tambah kabur",
+      "refresh_hint": "Pengaturan berlaku seketika; output terminal yang sudah ada atau efek perenderan font tertentu mungkin memerlukan muat ulang halaman.",
+      "reset": "Atur Ulang ke Default"
+    }
   },
   "theme": {
     "active": "Aktif",
